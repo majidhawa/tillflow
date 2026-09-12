@@ -1,0 +1,23 @@
+# Product + POS
+/services/web/ @Conslatekoyo
+/services/pos/ @Conslatekoyo
+/evidence/product/ @Conslatekoyo
+
+# Payments + Integrity
+/services/payments/ @Wachira-glory
+/services/commission/ @Wachira-glory
+/services/_shared/ @Wachira-glory
+/evidence/payments/ @Wachira-glory
+
+# Platform + Delivery
+/infra/ @majidhawa
+/.github/workflows/ @majidhawa
+/scripts/ @majidhawa
+/evidence/platform/ @majidhawa
+
+# Reliability + Operations
+/evidence/reliability/ @majidhawa
+
+# Shared documentation
+/docs/ @majidhawa
+/README.md @majidhawa

@@ -202,6 +202,22 @@ module "app_secrets" {
   tags = var.tags
 }
 
+module "github_oidc_roles" {
+  source = "../../modules/github-oidc-roles"
+
+  name_prefix        = var.name_prefix
+  region             = var.region
+  github_org         = var.github_org
+  github_repo        = var.github_repo
+  github_environment = var.github_environment
+  ecs_cluster_name   = module.ecs_cluster.cluster_name
+  app_names          = var.app_names
+
+  terraform_state_bucket_name = var.terraform_state_bucket_name
+
+  tags = var.tags
+}
+
 module "apigw" {
   source = "../../modules/apigw-vpclink"
 

@@ -98,19 +98,42 @@ with `role-to-assume` pointed at a repository variable — never `aws-access-key
 - The PR CI lane (`pr-ci.yml`) requests no AWS permissions at all — it cannot assume
   any role, by design.
 - The two IAM roles referenced (`AWS_TERRAFORM_ROLE_ARN`, `AWS_DEPLOY_ROLE_ARN`) are
-  **not created by this batch of work**. Provisioning the IAM roles and their OIDC
-  trust policies (scoped to this repository and, ideally, to `main`/PR conditions) is
-  still outstanding — see Limitations below.
+  **Terraform-managed**, defined in
+  [`infra/modules/github-oidc-roles`](../infra/modules/github-oidc-roles) and wired into
+  `infra/environments/dev/main.tf`. The module discovers the account ID and the
+  existing GitHub OIDC provider (`token.actions.githubusercontent.com`) via data
+  sources — it does not create the OIDC provider itself and does not hardcode an
+  account ID or provider ARN anywhere. Trust is scoped to this repository only
+  (`majidhawa/tillflow`): the Terraform role trusts the `pull_request` subject (for
+  `terraform.yml`'s `plan` job) and the `environment:production` subject (for its
+  `apply` job, which targets the `production` GitHub Environment); the deploy role
+  trusts only the `ref:refs/heads/main` subject, matching `build-images.yml`, which
+  runs solely on pushes to `main`. Neither role grants any other repository or branch
+  access.
+  - The dev environment exposes these as Terraform outputs —
+    `github_terraform_role_arn` and `github_deploy_role_arn`. **The GitHub repository
+    variables themselves (`AWS_TERRAFORM_ROLE_ARN`, `AWS_DEPLOY_ROLE_ARN`) still have to
+    be populated by hand** from those outputs (`terraform output github_terraform_role_arn`
+    / `github_deploy_role_arn` in `infra/environments/dev`) — Terraform does not, and
+    cannot, write GitHub repository settings itself. This document does not claim those
+    variables are already set — see Limitations below.
+  - No long-lived AWS credentials (access key/secret) are used anywhere in this setup;
+    both roles are reachable only via short-lived STS tokens issued through the OIDC
+    exchange.
 
 ## Required GitHub repository variables
 
 Configured under Settings → Secrets and variables → Actions → Variables (these are
 plain repository **variables**, not secrets — the ARNs themselves aren't sensitive):
 
-| Variable                  | Used by            | Purpose                                              |
-| -------------------------- | ------------------ | ----------------------------------------------------- |
-| `AWS_TERRAFORM_ROLE_ARN`   | `terraform.yml`     | Role assumed via OIDC for `plan`/`apply`               |
-| `AWS_DEPLOY_ROLE_ARN`      | `build-images.yml`  | Role assumed via OIDC for ECR login/push               |
+| Variable                  | Used by            | Purpose                                              | Source of value |
+| -------------------------- | ------------------ | ----------------------------------------------------- | ---------------- |
+| `AWS_TERRAFORM_ROLE_ARN`   | `terraform.yml`     | Role assumed via OIDC for `plan`/`apply`               | `terraform output github_terraform_role_arn` (`infra/environments/dev`) |
+| `AWS_DEPLOY_ROLE_ARN`      | `build-images.yml`  | Role assumed via OIDC for ECR login/push               | `terraform output github_deploy_role_arn` (`infra/environments/dev`) |
+
+These values come from Terraform outputs, not from a hand-written ARN — a repo admin
+must set them after `infra/environments/dev` has been applied. This document does not
+claim they have been set yet.
 
 ## Required protected GitHub environment
 
@@ -145,11 +168,15 @@ Every image built by `build-images.yml` is tagged with the immutable Git commit 
   workflow degrades safely for this (clear skip logs, job still succeeds) rather than
   failing, but none of the Node lint/typecheck/test, Docker build, or image
   build/push/scan logic has actually executed against real code yet.
-- **IAM roles for OIDC do not exist yet.** `AWS_TERRAFORM_ROLE_ARN` and
-  `AWS_DEPLOY_ROLE_ARN` must be created (Terraform, ideally, once the platform IAM
-  work covers this) and set as repository variables before `terraform.yml` or
-  `build-images.yml` can successfully authenticate to AWS. Until then, both workflows
-  will fail at the "Configure AWS credentials" step if triggered.
+- **The IAM roles exist in Terraform config but have not necessarily been applied, and
+  the GitHub repository variables have not necessarily been set.** The roles
+  (`devops-g8-github-terraform-role`, `devops-g8-github-deploy-role`) are defined in
+  `infra/modules/github-oidc-roles`; until `terraform apply` has actually run for
+  `infra/environments/dev` **and** a repo admin has copied the resulting
+  `github_terraform_role_arn` / `github_deploy_role_arn` outputs into the
+  `AWS_TERRAFORM_ROLE_ARN` / `AWS_DEPLOY_ROLE_ARN` repository variables, both workflows
+  will fail at the "Configure AWS credentials" step if triggered. This document does not
+  claim either of those steps has happened.
 - **The `production` GitHub Environment does not exist yet** (or hasn't been verified
   to exist) with required-reviewer protection turned on. Until a repo admin configures
   it, `terraform.yml`'s `apply` job's `environment: production` has no enforcement

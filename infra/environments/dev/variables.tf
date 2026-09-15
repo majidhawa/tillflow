@@ -154,6 +154,32 @@ variable "commission_schedule_expression" {
   default     = "cron(0 2 * * ? *)"
 }
 
+# --- GitHub Actions OIDC roles ---
+
+variable "github_org" {
+  description = "GitHub organization/user that owns the repository allowed to assume the CI/CD OIDC roles."
+  type        = string
+  default     = "majidhawa"
+}
+
+variable "github_repo" {
+  description = "GitHub repository allowed to assume the CI/CD OIDC roles."
+  type        = string
+  default     = "tillflow"
+}
+
+variable "github_environment" {
+  description = "GitHub Environment name terraform.yml's apply job targets."
+  type        = string
+  default     = "production"
+}
+
+variable "terraform_state_bucket_name" {
+  description = "Name of the S3 state bucket from infra/bootstrap. Mirrors infra/environments/dev/backend.tf, which must hardcode this same value because Terraform backend blocks cannot reference variables."
+  type        = string
+  default     = "devops-g8-terraform-state-a8a9220d"
+}
+
 # --- Secrets placeholders ---
 
 variable "app_secret_placeholders" {

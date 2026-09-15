@@ -89,8 +89,14 @@ Expected: one file under `infra/bootstrap/` and one under
 - [x] `.terraform.lock.hcl` present for both root Terraform configurations
       and no longer excluded by `.gitignore`
 - [x] `gitleaks` run locally with zero findings — see run output below
-- [ ] `AWS_TERRAFORM_ROLE_ARN` repository variable configured
-- [ ] `AWS_DEPLOY_ROLE_ARN` repository variable configured
+- [x] `devops-g8-github-terraform-role` and `devops-g8-github-deploy-role` IAM roles
+      defined in Terraform (`infra/modules/github-oidc-roles`), trust scoped to
+      `majidhawa/tillflow` OIDC subjects only — not yet confirmed applied to the account
+- [ ] `infra/environments/dev` applied so the roles actually exist in AWS
+- [ ] `AWS_TERRAFORM_ROLE_ARN` repository variable configured (from the
+      `github_terraform_role_arn` Terraform output, once applied)
+- [ ] `AWS_DEPLOY_ROLE_ARN` repository variable configured (from the
+      `github_deploy_role_arn` Terraform output, once applied)
 - [ ] `production` (or equivalent) GitHub Environment created with required
       reviewers, for `terraform.yml`'s `apply` job
 - [ ] First real `pr-ci.yml` run link/screenshot _(human to add)_
@@ -105,6 +111,9 @@ Expected: one file under `infra/bootstrap/` and one under
 - No service under `services/` has a `Dockerfile` or `package.json` yet —
   `pr-ci.yml`'s `service-ci` job and `build-images.yml` will skip
   Node/Docker/image steps for every service until that changes.
-- `AWS_TERRAFORM_ROLE_ARN` / `AWS_DEPLOY_ROLE_ARN` and their IAM roles/OIDC
-  trust policies do not exist yet, so `terraform.yml` and `build-images.yml`
-  cannot yet authenticate to AWS if triggered.
+- The IAM roles/OIDC trust policies for `AWS_TERRAFORM_ROLE_ARN` /
+  `AWS_DEPLOY_ROLE_ARN` are now defined in Terraform
+  (`infra/modules/github-oidc-roles`), but have not been confirmed applied to
+  the AWS account, and the GitHub repository variables have not been set from
+  their outputs. Until both of those happen, `terraform.yml` and
+  `build-images.yml` cannot authenticate to AWS if triggered.

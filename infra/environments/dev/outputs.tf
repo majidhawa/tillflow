@@ -163,6 +163,18 @@ output "app_secret_arns" {
   value       = module.app_secrets.secret_arns
 }
 
+# --- GitHub Actions OIDC roles ---
+
+output "github_terraform_role_arn" {
+  description = "ARN to set as the AWS_TERRAFORM_ROLE_ARN GitHub repository variable."
+  value       = module.github_oidc_roles.terraform_role_arn
+}
+
+output "github_deploy_role_arn" {
+  description = "ARN to set as the AWS_DEPLOY_ROLE_ARN GitHub repository variable."
+  value       = module.github_oidc_roles.deploy_role_arn
+}
+
 # --- API Gateway / VPC Link ---
 
 output "api_gateway_id" {

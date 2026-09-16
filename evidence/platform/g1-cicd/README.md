@@ -89,10 +89,17 @@ Expected: one file under `infra/bootstrap/` and one under
 - [x] `.terraform.lock.hcl` present for both root Terraform configurations
       and no longer excluded by `.gitignore`
 - [x] `gitleaks` run locally with zero findings — see run output below
-- [x] `devops-g8-github-terraform-role` and `devops-g8-github-deploy-role` IAM roles
-      defined in Terraform (`infra/modules/github-oidc-roles`), trust scoped to
-      `majidhawa/tillflow` OIDC subjects only — not yet confirmed applied to the account
+- [x] `devops-g8-github-terraform-plan-role`, `devops-g8-github-terraform-role`, and
+      `devops-g8-github-deploy-role` IAM roles defined in Terraform
+      (`infra/modules/github-oidc-roles`), trust scoped to `majidhawa/tillflow` OIDC
+      subjects only — not yet confirmed applied to the account
+- [x] Terraform plan/apply roles split with mutually exclusive trust: the plan role
+      trusts only `pull_request` and is read-only against AWS; the apply role trusts
+      only `environment:production` and holds no PR-reachable path to mutate
+      infrastructure or Terraform state
 - [ ] `infra/environments/dev` applied so the roles actually exist in AWS
+- [ ] `AWS_TERRAFORM_PLAN_ROLE_ARN` repository variable configured (from the
+      `github_terraform_plan_role_arn` Terraform output, once applied)
 - [ ] `AWS_TERRAFORM_ROLE_ARN` repository variable configured (from the
       `github_terraform_role_arn` Terraform output, once applied)
 - [ ] `AWS_DEPLOY_ROLE_ARN` repository variable configured (from the
@@ -111,9 +118,13 @@ Expected: one file under `infra/bootstrap/` and one under
 - No service under `services/` has a `Dockerfile` or `package.json` yet —
   `pr-ci.yml`'s `service-ci` job and `build-images.yml` will skip
   Node/Docker/image steps for every service until that changes.
-- The IAM roles/OIDC trust policies for `AWS_TERRAFORM_ROLE_ARN` /
-  `AWS_DEPLOY_ROLE_ARN` are now defined in Terraform
-  (`infra/modules/github-oidc-roles`), but have not been confirmed applied to
-  the AWS account, and the GitHub repository variables have not been set from
-  their outputs. Until both of those happen, `terraform.yml` and
-  `build-images.yml` cannot authenticate to AWS if triggered.
+- The IAM roles/OIDC trust policies for `AWS_TERRAFORM_PLAN_ROLE_ARN`,
+  `AWS_TERRAFORM_ROLE_ARN`, and `AWS_DEPLOY_ROLE_ARN` are now defined in
+  Terraform (`infra/modules/github-oidc-roles`), but have not been confirmed
+  applied to the AWS account, and the GitHub repository variables have not
+  been set from their outputs. Until both of those happen, `terraform.yml`
+  and `build-images.yml` cannot authenticate to AWS if triggered.
+- The PR plan role (`devops-g8-github-terraform-plan-role`) cannot refresh
+  `aws_secretsmanager_secret_version.db` (no `secretsmanager:GetSecretValue`
+  by design) — a PR touching `infra/` may show an error for that one
+  resource during `terraform plan`. See `docs/cicd.md` Limitations.

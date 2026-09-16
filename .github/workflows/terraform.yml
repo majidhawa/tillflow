@@ -43,12 +43,14 @@ jobs:
           terraform_wrapper: false
 
       # Repository variable, not a secret: the ARN itself isn't sensitive,
-      # and OIDC trust conditions (repo + branch) are what actually gate
-      # who can assume it. No long-lived AWS keys are used anywhere here.
+      # and OIDC trust conditions (repo + pull_request) are what actually
+      # gate who can assume it. This is a separate, read-only role from
+      # AWS_TERRAFORM_ROLE_ARN below — a PR can never assume the
+      # apply-capable role. No long-lived AWS keys are used anywhere here.
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_TERRAFORM_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_TERRAFORM_PLAN_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: terraform fmt (check only)

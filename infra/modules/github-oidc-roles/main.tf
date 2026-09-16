@@ -1,6 +1,12 @@
 # GitHub Actions OIDC IAM roles for the existing CI/CD workflows
 # (.github/workflows/terraform.yml, .github/workflows/build-images.yml).
 #
+# Three roles, each trusting exactly one OIDC subject:
+#   - github_terraform_plan: PR plan only (read-only against AWS)
+#   - github_terraform:      main-branch production apply only
+#   - github_deploy:         main-branch image push only
+# A PR can never assume the apply-capable or deploy-capable roles.
+#
 # This module does NOT create the OIDC provider itself — an
 # aws_iam_openid_connect_provider for token.actions.githubusercontent.com
 # already exists in this account, discovered below via data source rather
@@ -35,12 +41,19 @@ locals {
 #     (this REPLACES the ref/pull_request form for that job)
 #
 # terraform.yml's `plan` job runs on pull_request with no environment, and
-# its `apply` job targets `environment: production` — so the Terraform
-# role must trust exactly those two subjects, not a branch-ref subject.
+# its `apply` job targets `environment: production`. These are two
+# DIFFERENT roles on purpose: a PR must never be able to assume the
+# apply-capable role (which has infrastructure mutation, IAM management,
+# Secrets Manager, and Terraform state write permissions), so the trust
+# split enforces that at the IAM layer, not just by workflow convention.
 
+# Apply-only: trusts ONLY the production-environment subject. PRs cannot
+# present this subject (GitHub only issues it for a job that targets the
+# `production` GitHub Environment, which requires push-to-main + this
+# workflow's `environment: production` job setting).
 data "aws_iam_policy_document" "terraform_trust" {
   statement {
-    sid     = "GithubActionsTerraformOidc"
+    sid     = "GithubActionsTerraformApplyOidc"
     effect  = "Allow"
     actions = ["sts:AssumeRoleWithWebIdentity"]
 
@@ -58,10 +71,34 @@ data "aws_iam_policy_document" "terraform_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "${local.repo_subject}:pull_request",
-        "${local.repo_subject}:environment:${var.github_environment}",
-      ]
+      values   = ["${local.repo_subject}:environment:${var.github_environment}"]
+    }
+  }
+}
+
+# PR plan only: trusts ONLY the pull_request subject. Cannot be assumed by
+# a push to main or by any job that targets an environment.
+data "aws_iam_policy_document" "terraform_plan_trust" {
+  statement {
+    sid     = "GithubActionsTerraformPlanOidc"
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["${local.repo_subject}:pull_request"]
     }
   }
 }
@@ -96,8 +133,16 @@ data "aws_iam_policy_document" "deploy_trust" {
 
 resource "aws_iam_role" "github_terraform" {
   name               = "${var.name_prefix}-github-terraform-role"
-  description        = "Assumed via GitHub OIDC by terraform.yml (PR plan + main apply) for ${local.repo_subject}."
+  description        = "Apply-only. Assumed via GitHub OIDC by terraform.yml's apply job (push to main, production environment) for ${local.repo_subject}. Not assumable from a pull_request."
   assume_role_policy = data.aws_iam_policy_document.terraform_trust.json
+
+  tags = var.tags
+}
+
+resource "aws_iam_role" "github_terraform_plan" {
+  name               = "${var.name_prefix}-github-terraform-plan-role"
+  description        = "Read-only. Assumed via GitHub OIDC by terraform.yml's PR plan job for ${local.repo_subject}. Cannot mutate infrastructure or Terraform state."
+  assume_role_policy = data.aws_iam_policy_document.terraform_plan_trust.json
 
   tags = var.tags
 }
@@ -636,4 +681,278 @@ resource "aws_iam_role_policy" "terraform" {
   name   = "${var.name_prefix}-github-terraform-permissions"
   role   = aws_iam_role.github_terraform.id
   policy = data.aws_iam_policy_document.terraform_permissions.json
+}
+
+# --- Terraform PLAN role permissions ---
+# Read-only mirror of terraform_permissions above: same resource scoping,
+# but every Create/Update/Delete/Modify/Put/Attach/PassRole/CreateService-
+# LinkedRole action is removed. This is what a PR-triggered `terraform
+# plan` actually needs — enough Describe/List/Get access to refresh state
+# and compute a diff, nothing that can change AWS or Terraform state.
+#
+# The one exception is DynamoDB lock-table PutItem/DeleteItem: Terraform's
+# S3 backend takes a state lock for `plan` exactly as it does for `apply`
+# (acquired via PutItem, released via DeleteItem), and without it `plan`
+# cannot acquire the lock and fails outright. This writes a transient lock
+# record keyed by the state path — not infrastructure, not state content —
+# and is scoped to the one lock table only. It is the sole mutating
+# permission granted to this otherwise read-only role.
+data "aws_iam_policy_document" "terraform_plan_permissions" {
+
+  statement {
+    sid = "Ec2NetworkingReadOnly"
+    actions = [
+      "ec2:DescribeVpcs",
+      "ec2:DescribeVpcAttribute",
+      "ec2:DescribeSubnets",
+      "ec2:DescribeRouteTables",
+      "ec2:DescribeInternetGateways",
+      "ec2:DescribeNatGateways",
+      "ec2:DescribeAddresses",
+      "ec2:DescribeAddressesAttribute",
+      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeSecurityGroupRules",
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DescribeAvailabilityZones",
+      "ec2:DescribeAccountAttributes",
+      "ec2:DescribeTags",
+    ]
+    resources = ["*"] # EC2 Describe* actions have no resource-level ARN form
+  }
+
+  statement {
+    sid = "Elbv2ReadOnly"
+    actions = [
+      "elasticloadbalancing:DescribeLoadBalancers",
+      "elasticloadbalancing:DescribeLoadBalancerAttributes",
+      "elasticloadbalancing:DescribeTargetGroups",
+      "elasticloadbalancing:DescribeTargetGroupAttributes",
+      "elasticloadbalancing:DescribeListeners",
+      "elasticloadbalancing:DescribeRules",
+      "elasticloadbalancing:DescribeTargetHealth",
+      "elasticloadbalancing:DescribeTags",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "EcsReadOnly"
+    actions = [
+      "ecs:DescribeClusters",
+      "ecs:DescribeServices",
+      "ecs:ListTagsForResource",
+    ]
+    resources = [
+      "arn:aws:ecs:${var.region}:${local.account_id}:cluster/${var.ecs_cluster_name}",
+      "arn:aws:ecs:${var.region}:${local.account_id}:service/${var.ecs_cluster_name}/${var.name_prefix}-*",
+    ]
+  }
+
+  statement {
+    sid       = "EcsTaskDefinitionsReadOnly"
+    actions   = ["ecs:DescribeTaskDefinition"]
+    resources = ["arn:aws:ecs:${var.region}:${local.account_id}:task-definition/${var.name_prefix}-*:*"]
+  }
+
+  statement {
+    sid = "EcsListOnly"
+    actions = [
+      "ecs:ListClusters",
+      "ecs:ListServices",
+      "ecs:ListTaskDefinitions",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "EcrReadOnly"
+    actions = [
+      "ecr:DescribeRepositories",
+      "ecr:GetLifecyclePolicy",
+      "ecr:ListTagsForResource",
+    ]
+    resources = local.ecr_repository_arns
+  }
+
+  statement {
+    sid = "CloudWatchLogGroupsReadOnly"
+    actions = [
+      "logs:DescribeLogGroups",
+      "logs:ListTagsForResource",
+    ]
+    resources = [
+      "arn:aws:logs:${var.region}:${local.account_id}:log-group:/ecs/${var.name_prefix}-*",
+      "arn:aws:logs:${var.region}:${local.account_id}:log-group:/ecs/${var.name_prefix}-*:*",
+      "arn:aws:logs:${var.region}:${local.account_id}:log-group:/apigw/${var.name_prefix}-*",
+      "arn:aws:logs:${var.region}:${local.account_id}:log-group:/apigw/${var.name_prefix}-*:*",
+    ]
+  }
+
+  statement {
+    sid       = "CloudWatchLogsResourcePolicyReadOnly"
+    actions   = ["logs:DescribeResourcePolicies"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid     = "ApiGatewayV2ReadOnly"
+    actions = ["apigateway:GET"]
+    resources = [
+      "arn:aws:apigateway:${var.region}::/apis",
+      "arn:aws:apigateway:${var.region}::/apis/*",
+      "arn:aws:apigateway:${var.region}::/vpclinks",
+      "arn:aws:apigateway:${var.region}::/vpclinks/*",
+      "arn:aws:apigateway:${var.region}::/tags/*",
+    ]
+  }
+
+  statement {
+    sid = "RdsPostgresReadOnly"
+    actions = [
+      "rds:DescribeDBInstances",
+      "rds:DescribeDBSubnetGroups",
+      "rds:ListTagsForResource",
+    ]
+    resources = [
+      "arn:aws:rds:${var.region}:${local.account_id}:db:${var.name_prefix}-postgres",
+      "arn:aws:rds:${var.region}:${local.account_id}:subgrp:${var.name_prefix}-postgres-subnet-group",
+    ]
+  }
+
+  statement {
+    sid = "ElastiCacheReadOnly"
+    actions = [
+      "elasticache:DescribeReplicationGroups",
+      "elasticache:DescribeCacheClusters",
+      "elasticache:DescribeCacheSubnetGroups",
+      "elasticache:ListTagsForResource",
+    ]
+    resources = [
+      "arn:aws:elasticache:${var.region}:${local.account_id}:replicationgroup:${var.name_prefix}-redis",
+      "arn:aws:elasticache:${var.region}:${local.account_id}:subnetgroup:${var.name_prefix}-redis-subnet-group",
+      "arn:aws:elasticache:${var.region}:${local.account_id}:cluster:${var.name_prefix}-redis*",
+    ]
+  }
+
+  statement {
+    sid = "SqsReadOnly"
+    actions = [
+      "sqs:GetQueueAttributes",
+      "sqs:GetQueueUrl",
+      "sqs:ListQueueTags",
+    ]
+    resources = ["arn:aws:sqs:${var.region}:${local.account_id}:${var.name_prefix}-*"]
+  }
+
+  statement {
+    sid = "AppS3BucketsReadOnly"
+    actions = [
+      "s3:GetBucketVersioning",
+      "s3:GetEncryptionConfiguration",
+      "s3:GetBucketPublicAccessBlock",
+      "s3:GetBucketTagging",
+      "s3:GetBucketLocation",
+      "s3:GetBucketAcl",
+      "s3:ListBucket",
+    ]
+    resources = ["arn:aws:s3:::${var.name_prefix}-*"]
+  }
+
+  # Terraform remote state: read-only. No s3:PutObject/DeleteObject
+  # anywhere in this policy.
+  statement {
+    sid     = "TerraformStateObjectReadOnly"
+    actions = ["s3:GetObject"]
+    resources = [
+      "arn:aws:s3:::${var.terraform_state_bucket_name}/${var.terraform_state_key}",
+      "arn:aws:s3:::${var.terraform_state_bucket_name}/${var.terraform_state_key}.tflock",
+    ]
+  }
+
+  statement {
+    sid       = "TerraformStateBucketListReadOnly"
+    actions   = ["s3:ListBucket", "s3:GetBucketVersioning"]
+    resources = ["arn:aws:s3:::${var.terraform_state_bucket_name}"]
+
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["${var.terraform_state_key}*"]
+    }
+  }
+
+  # The one mutating exception on this role — see the doc comment above
+  # this policy document for why it's required and why it's safe.
+  statement {
+    sid = "TerraformStateLockMinimal"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:DeleteItem",
+      "dynamodb:DescribeTable",
+    ]
+    resources = ["arn:aws:dynamodb:${var.region}:${local.account_id}:table/${var.terraform_lock_table_name}"]
+  }
+
+  statement {
+    sid = "EventBridgeScheduleReadOnly"
+    actions = [
+      "events:DescribeRule",
+      "events:ListTagsForResource",
+    ]
+    resources = ["arn:aws:events:${var.region}:${local.account_id}:rule/${var.name_prefix}-*"]
+  }
+
+  # Secrets Manager: metadata only. DescribeSecret returns name/ARN/
+  # description/tags/rotation config — never the secret value.
+  # secretsmanager:GetSecretValue and PutSecretValue are intentionally NOT
+  # granted here. Consequence: Terraform's refresh of the
+  # aws_secretsmanager_secret_version resource (infra/modules/rds-postgres)
+  # needs GetSecretValue to detect drift on the stored value — under this
+  # role, that one resource's refresh will fail with AccessDenied. This is
+  # an accepted, documented trade-off of keeping the PR plan role
+  # read-only against secret values — see docs/cicd.md.
+  statement {
+    sid       = "SecretsManagerMetadataOnly"
+    actions   = ["secretsmanager:DescribeSecret"]
+    resources = ["arn:aws:secretsmanager:${var.region}:${local.account_id}:secret:${var.name_prefix}-*"]
+  }
+
+  # IAM: read-only metadata for the same devops-g8-* roles the apply role
+  # manages. No Create/Update/Put/Delete/Attach/Detach/PassRole/
+  # CreateServiceLinkedRole anywhere in this policy.
+  statement {
+    sid = "IamRoleMetadataReadOnly"
+    actions = [
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListRolePolicies",
+      "iam:ListAttachedRolePolicies",
+    ]
+    resources = ["arn:aws:iam::${local.account_id}:role/${var.name_prefix}-*"]
+  }
+
+  statement {
+    sid       = "ListOidcProvidersReadOnly"
+    actions   = ["iam:ListOpenIDConnectProviders"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "ReadGithubOidcProviderReadOnly"
+    actions   = ["iam:GetOpenIDConnectProvider"]
+    resources = ["arn:aws:iam::${local.account_id}:oidc-provider/token.actions.githubusercontent.com"]
+  }
+
+  statement {
+    sid       = "StsIdentityReadOnly"
+    actions   = ["sts:GetCallerIdentity"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "terraform_plan" {
+  name   = "${var.name_prefix}-github-terraform-plan-permissions"
+  role   = aws_iam_role.github_terraform_plan.id
+  policy = data.aws_iam_policy_document.terraform_plan_permissions.json
 }

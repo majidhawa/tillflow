@@ -166,8 +166,13 @@ output "app_secret_arns" {
 # --- GitHub Actions OIDC roles ---
 
 output "github_terraform_role_arn" {
-  description = "ARN to set as the AWS_TERRAFORM_ROLE_ARN GitHub repository variable."
+  description = "ARN to set as the AWS_TERRAFORM_ROLE_ARN GitHub repository variable. Apply-only (push to main, production environment) — not assumable from a pull_request."
   value       = module.github_oidc_roles.terraform_role_arn
+}
+
+output "github_terraform_plan_role_arn" {
+  description = "ARN to set as the AWS_TERRAFORM_PLAN_ROLE_ARN GitHub repository variable. Read-only against AWS; used by terraform.yml's PR plan job only."
+  value       = module.github_oidc_roles.terraform_plan_role_arn
 }
 
 output "github_deploy_role_arn" {

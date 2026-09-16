@@ -9,7 +9,33 @@
 # rule needs both this module's and the apigw-vpclink module's outputs —
 # putting it in either module would create a circular module dependency.
 
+data "aws_caller_identity" "current" {}
+
 locals {
+  # ALB access-log delivery to S3 in regions launched before Aug 2022 (which
+  # includes eu-west-3) is authorized via a fixed, per-region ELB service
+  # account as bucket-policy principal — there is no service-principal form
+  # for these older regions. Source: AWS ELB access-logs documentation's
+  # per-region account ID table; verify against current AWS docs before
+  # relying on this in a region not listed here.
+  elb_log_delivery_account_ids = {
+    "us-east-1"      = "127311923021"
+    "us-east-2"      = "033677994240"
+    "us-west-1"      = "027434742980"
+    "us-west-2"      = "797873946194"
+    "eu-west-1"      = "156460612806"
+    "eu-west-2"      = "652711504416"
+    "eu-west-3"      = "009996457667"
+    "eu-central-1"   = "054676820928"
+    "eu-north-1"     = "897822967062"
+    "ap-southeast-1" = "114774131450"
+    "ap-southeast-2" = "783225319266"
+    "ap-northeast-1" = "582318560864"
+    "ap-south-1"     = "718504428378"
+    "sa-east-1"      = "507241528517"
+    "ca-central-1"   = "985666609251"
+  }
+
   services_by_name = { for s in var.services : s.name => s }
   web_service      = var.services[0]
   backend_services = slice(var.services, 1, length(var.services))
@@ -91,6 +117,94 @@ resource "aws_security_group_rule" "ecs_egress_https" {
   description       = "ECR pull, CloudWatch/X-Ray export, Secrets Manager, SQS, S3 (HTTPS only)"
 }
 
+# ALB access logs. A dedicated bucket, not part of the shared s3-buckets
+# module: ALB log delivery requires an SSE-S3 (AES256) target bucket —
+# SSE-KMS is not supported for this destination — so it can't share that
+# module's customer-managed key.
+resource "random_id" "access_logs_suffix" {
+  byte_length = 4
+}
+
+resource "aws_s3_bucket" "access_logs" {
+  bucket = "${var.name_prefix}-alb-logs-${random_id.access_logs_suffix.hex}"
+
+  tags = merge(var.tags, {
+    Name    = "${var.name_prefix}-alb-logs"
+    Purpose = "alb-access-logs"
+  })
+}
+
+resource "aws_s3_bucket_versioning" "access_logs" {
+  bucket = aws_s3_bucket.access_logs.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Accepted exception: SSE-S3 (AES256) instead of a customer-managed KMS
+# key. AVD-AWS-0132 asks for CMK/SSE-KMS, but AWS's ALB access-log
+# delivery only supports SSE-S3 buckets — Trivy's own rule description
+# for AWS-0132 says as much. Not a gap to revisit; it's an AWS hard
+# constraint on this specific bucket's purpose. Owner: Hawaah.
+#trivy:ignore:AVD-AWS-0132
+resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" {
+  bucket = aws_s3_bucket.access_logs.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "access_logs" {
+  bucket = aws_s3_bucket.access_logs.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
+  bucket = aws_s3_bucket.access_logs.id
+
+  rule {
+    id     = "expire-access-logs"
+    status = "Enabled"
+    filter {}
+
+    expiration {
+      days = var.access_logs_expiration_days
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = var.access_logs_expiration_days
+    }
+  }
+}
+
+data "aws_iam_policy_document" "access_logs_delivery" {
+  statement {
+    sid     = "AlbAccessLogDelivery"
+    actions = ["s3:PutObject"]
+    resources = [
+      "${aws_s3_bucket.access_logs.arn}/${var.name_prefix}-alb/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
+    ]
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${local.elb_log_delivery_account_ids[var.region]}:root"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "access_logs" {
+  bucket = aws_s3_bucket.access_logs.id
+  policy = data.aws_iam_policy_document.access_logs_delivery.json
+}
+
 # Internal-only: the ALB security group has no ingress rule of its own
 # (see comment above) other than from the API Gateway VPC Link. Making the
 # ALB itself internal, in private subnets, means it also carries no public
@@ -105,6 +219,14 @@ resource "aws_lb" "this" {
   # Standard hardening: reject requests with malformed/ambiguous headers
   # rather than passing them through to backends.
   drop_invalid_header_fields = true
+
+  access_logs {
+    bucket  = aws_s3_bucket.access_logs.id
+    prefix  = "${var.name_prefix}-alb"
+    enabled = true
+  }
+
+  depends_on = [aws_s3_bucket_policy.access_logs]
 
   tags = var.tags
 }

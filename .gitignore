@@ -33,6 +33,7 @@ coverage/
 crash.log
 crash.*.log
 *.tfplan
+tfplan
 # .terraform.lock.hcl is intentionally NOT ignored — it is committed for
 # reproducible provider resolution.
 

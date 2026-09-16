@@ -32,6 +32,7 @@ module "alb" {
 
   name_prefix = var.name_prefix
   vpc_id      = module.network.vpc_id
+  region      = var.region
   subnet_ids  = module.network.private_subnet_ids
 
   services = [for name in var.app_names : {
@@ -178,6 +179,7 @@ module "s3_buckets" {
 
   name_prefix        = var.name_prefix
   purposes           = var.s3_purposes
+  expiration_days    = var.s3_expiration_days
   ecs_task_role_name = module.ecs_cluster.task_role_name
 
   tags = var.tags

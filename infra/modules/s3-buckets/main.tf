@@ -57,6 +57,36 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   }
 }
 
+resource "aws_s3_bucket_lifecycle_configuration" "this" {
+  for_each = aws_s3_bucket.this
+
+  bucket = each.value.id
+
+  rule {
+    id     = "noncurrent-version-expiration"
+    status = "Enabled"
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = var.noncurrent_version_expiration_days
+    }
+  }
+
+  dynamic "rule" {
+    for_each = contains(keys(var.expiration_days), each.key) ? [var.expiration_days[each.key]] : []
+
+    content {
+      id     = "current-object-expiration"
+      status = "Enabled"
+      filter {}
+
+      expiration {
+        days = rule.value
+      }
+    }
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "this" {
   for_each = aws_s3_bucket.this
 

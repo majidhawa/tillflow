@@ -44,7 +44,10 @@ redis_node_type      = "cache.t4g.micro"
 sqs_queue_name = "payment-events"
 
 # --- S3 ---
-s3_purposes = ["receipts", "reports", "audit"]
+# artifacts/backups/evidence are the capstone brief's required platform
+# buckets (state and ALB access logs are provisioned separately).
+s3_purposes        = ["receipts", "reports", "audit", "artifacts", "backups", "evidence"]
+s3_expiration_days = { artifacts = 90 }
 
 # --- EventBridge ---
 # No target is wired yet — see infra/modules/eventbridge-schedule/main.tf.

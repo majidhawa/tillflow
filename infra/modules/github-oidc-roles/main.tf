@@ -498,6 +498,11 @@ data "aws_iam_policy_document" "terraform_permissions" {
       "s3:GetBucketLocation",
       "s3:GetBucketAcl",
       "s3:ListBucket",
+      "s3:PutLifecycleConfiguration",
+      "s3:GetLifecycleConfiguration",
+      "s3:PutBucketPolicy",
+      "s3:GetBucketPolicy",
+      "s3:DeleteBucketPolicy",
     ]
     resources = ["arn:aws:s3:::${var.name_prefix}-*"]
   }
@@ -880,6 +885,8 @@ data "aws_iam_policy_document" "terraform_plan_permissions" {
       "s3:GetBucketLocation",
       "s3:GetBucketAcl",
       "s3:ListBucket",
+      "s3:GetLifecycleConfiguration",
+      "s3:GetBucketPolicy",
     ]
     resources = ["arn:aws:s3:::${var.name_prefix}-*"]
   }

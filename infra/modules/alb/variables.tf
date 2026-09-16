@@ -9,6 +9,17 @@ variable "vpc_id" {
   type        = string
 }
 
+variable "region" {
+  description = "AWS region (used to select the correct ELB log-delivery account ID for the access-logs bucket policy)."
+  type        = string
+}
+
+variable "access_logs_expiration_days" {
+  description = "Days before ALB access log objects (and their noncurrent versions) are expired."
+  type        = number
+  default     = 90
+}
+
 variable "subnet_ids" {
   description = "Subnet IDs (from the existing network module) for the ALB. Private subnets, since the ALB is internal-only — reached solely via the API Gateway VPC Link, never directly from the internet."
   type        = list(string)

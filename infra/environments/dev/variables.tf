@@ -141,9 +141,15 @@ variable "sqs_queue_name" {
 # --- S3 ---
 
 variable "s3_purposes" {
-  description = "Purpose-separated bucket names to create."
+  description = "Purpose-separated bucket names to create. artifacts/backups/evidence satisfy the capstone brief's required platform buckets (state and ALB access logs are provisioned separately — state in infra/bootstrap, ALB logs in infra/modules/alb since it needs SSE-S3, not KMS); receipts/reports/audit are product-side buckets for sale receipts, reporting exports and audit trails."
   type        = list(string)
-  default     = ["receipts", "reports", "audit"]
+  default     = ["receipts", "reports", "audit", "artifacts", "backups", "evidence"]
+}
+
+variable "s3_expiration_days" {
+  description = "Per-purpose current-object expiration in days. Purposes left out (backups, evidence, audit, receipts, reports) are kept indefinitely."
+  type        = map(number)
+  default     = { artifacts = 90 }
 }
 
 # --- EventBridge ---

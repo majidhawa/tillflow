@@ -220,6 +220,25 @@ module "github_oidc_roles" {
   tags = var.tags
 }
 
+module "slack_alerts" {
+  source = "../../modules/slack-alerts"
+
+  name_prefix              = var.name_prefix
+  slack_webhook_secret_arn = module.app_secrets.secret_arns["slack-webhook"]
+  environment_name         = var.environment_name
+
+  tags = var.tags
+}
+
+module "synthetic_probe" {
+  source = "../../modules/synthetic-probe"
+
+  name_prefix = var.name_prefix
+  target_url  = module.apigw.api_endpoint
+
+  tags = var.tags
+}
+
 module "apigw" {
   source = "../../modules/apigw-vpclink"
 

@@ -10,6 +10,12 @@ variable "name_prefix" {
   default     = "devops-g8"
 }
 
+variable "environment_name" {
+  description = "Environment label included in Slack alert messages (infra/modules/slack-alerts)."
+  type        = string
+  default     = "capstone"
+}
+
 variable "vpc_cidr" {
   description = "CIDR block for the dev VPC."
   type        = string

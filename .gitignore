@@ -19,6 +19,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+# AWS Synthetics requires this exact path for an inline canary script
+# (infra/modules/synthetic-probe) — it's source, not an npm install, so
+# un-ignore it specifically rather than excluding node_modules/ entirely.
+!infra/modules/synthetic-probe/canary/nodejs/
+!infra/modules/synthetic-probe/canary/nodejs/node_modules/
+!infra/modules/synthetic-probe/canary/nodejs/node_modules/*.js
 
 # Build output
 dist/
@@ -36,6 +42,10 @@ crash.*.log
 tfplan
 # .terraform.lock.hcl is intentionally NOT ignored — it is committed for
 # reproducible provider resolution.
+# Lambda/Synthetics packages built locally by data.archive_file
+# (infra/modules/slack-alerts, infra/modules/synthetic-probe) — rebuilt
+# on every plan/apply, never hand-edited, no reason to commit.
+**/.build/*.zip
 
 # Local tooling
 tmp/

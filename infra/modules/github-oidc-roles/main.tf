@@ -376,7 +376,92 @@ data "aws_iam_policy_document" "terraform_permissions" {
       "arn:aws:logs:${var.region}:${local.account_id}:log-group:/ecs/${var.name_prefix}-*:*",
       "arn:aws:logs:${var.region}:${local.account_id}:log-group:/apigw/${var.name_prefix}-*",
       "arn:aws:logs:${var.region}:${local.account_id}:log-group:/apigw/${var.name_prefix}-*:*",
+      "arn:aws:logs:${var.region}:${local.account_id}:log-group:/aws/lambda/${var.name_prefix}-*",
+      "arn:aws:logs:${var.region}:${local.account_id}:log-group:/aws/lambda/${var.name_prefix}-*:*",
     ]
+  }
+
+  # SNS (infra/modules/slack-alerts alert topic).
+  statement {
+    sid = "SnsAlerts"
+    actions = [
+      "sns:CreateTopic",
+      "sns:DeleteTopic",
+      "sns:GetTopicAttributes",
+      "sns:SetTopicAttributes",
+      "sns:Subscribe",
+      "sns:Unsubscribe",
+      "sns:ListSubscriptionsByTopic",
+      "sns:TagResource",
+      "sns:UntagResource",
+      "sns:ListTagsForResource",
+    ]
+    resources = ["arn:aws:sns:${var.region}:${local.account_id}:${var.name_prefix}-*"]
+  }
+
+  # Lambda (infra/modules/slack-alerts notifier function; Synthetics
+  # canaries also run as Lambda functions under the hood, but Terraform
+  # never manages those directly — the synthetics:* actions below do).
+  statement {
+    sid = "LambdaFunctions"
+    actions = [
+      "lambda:CreateFunction",
+      "lambda:DeleteFunction",
+      "lambda:GetFunction",
+      "lambda:GetFunctionConfiguration",
+      "lambda:UpdateFunctionCode",
+      "lambda:UpdateFunctionConfiguration",
+      "lambda:AddPermission",
+      "lambda:RemovePermission",
+      "lambda:GetPolicy",
+      "lambda:ListVersionsByFunction",
+      "lambda:TagResource",
+      "lambda:UntagResource",
+      "lambda:ListTags",
+    ]
+    resources = ["arn:aws:lambda:${var.region}:${local.account_id}:function:${var.name_prefix}-*"]
+  }
+
+  # Synthetics (infra/modules/synthetic-probe external heartbeat canary).
+  statement {
+    sid = "SyntheticsCanary"
+    actions = [
+      "synthetics:CreateCanary",
+      "synthetics:DeleteCanary",
+      "synthetics:GetCanary",
+      "synthetics:UpdateCanary",
+      "synthetics:StartCanary",
+      "synthetics:StopCanary",
+      "synthetics:TagResource",
+      "synthetics:UntagResource",
+      "synthetics:ListTagsForResource",
+    ]
+    resources = ["arn:aws:synthetics:${var.region}:${local.account_id}:canary:${var.name_prefix}-*"]
+  }
+
+  # No resource-level ARN form exists for this action.
+  statement {
+    sid       = "SyntheticsRuntimeVersions"
+    actions   = ["synthetics:DescribeRuntimeVersions"]
+    resources = ["*"]
+  }
+
+  # The slack-notifier and synthetics-canary roles are both passed to
+  # Lambda (Synthetics canaries execute as Lambda functions), never to
+  # any other service.
+  statement {
+    sid     = "PassLambdaRolesToLambda"
+    actions = ["iam:PassRole"]
+    resources = [
+      "arn:aws:iam::${local.account_id}:role/${var.name_prefix}-slack-notifier",
+      "arn:aws:iam::${local.account_id}:role/${var.name_prefix}-synthetics-canary",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["lambda.amazonaws.com"]
+    }
   }
 
   # The API Gateway access-log resource policy (infra/modules/apigw-vpclink)
@@ -816,7 +901,49 @@ data "aws_iam_policy_document" "terraform_plan_permissions" {
       "arn:aws:logs:${var.region}:${local.account_id}:log-group:/ecs/${var.name_prefix}-*:*",
       "arn:aws:logs:${var.region}:${local.account_id}:log-group:/apigw/${var.name_prefix}-*",
       "arn:aws:logs:${var.region}:${local.account_id}:log-group:/apigw/${var.name_prefix}-*:*",
+      "arn:aws:logs:${var.region}:${local.account_id}:log-group:/aws/lambda/${var.name_prefix}-*",
+      "arn:aws:logs:${var.region}:${local.account_id}:log-group:/aws/lambda/${var.name_prefix}-*:*",
     ]
+  }
+
+  # Read-only mirror of SnsAlerts above.
+  statement {
+    sid = "SnsAlertsReadOnly"
+    actions = [
+      "sns:GetTopicAttributes",
+      "sns:ListSubscriptionsByTopic",
+      "sns:ListTagsForResource",
+    ]
+    resources = ["arn:aws:sns:${var.region}:${local.account_id}:${var.name_prefix}-*"]
+  }
+
+  # Read-only mirror of LambdaFunctions above.
+  statement {
+    sid = "LambdaFunctionsReadOnly"
+    actions = [
+      "lambda:GetFunction",
+      "lambda:GetFunctionConfiguration",
+      "lambda:GetPolicy",
+      "lambda:ListVersionsByFunction",
+      "lambda:ListTags",
+    ]
+    resources = ["arn:aws:lambda:${var.region}:${local.account_id}:function:${var.name_prefix}-*"]
+  }
+
+  # Read-only mirror of SyntheticsCanary/SyntheticsRuntimeVersions above.
+  statement {
+    sid = "SyntheticsCanaryReadOnly"
+    actions = [
+      "synthetics:GetCanary",
+      "synthetics:ListTagsForResource",
+    ]
+    resources = ["arn:aws:synthetics:${var.region}:${local.account_id}:canary:${var.name_prefix}-*"]
+  }
+
+  statement {
+    sid       = "SyntheticsRuntimeVersionsReadOnly"
+    actions   = ["synthetics:DescribeRuntimeVersions"]
+    resources = ["*"]
   }
 
   statement {

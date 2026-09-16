@@ -502,6 +502,32 @@ data "aws_iam_policy_document" "terraform_permissions" {
     resources = ["arn:aws:s3:::${var.name_prefix}-*"]
   }
 
+  # KMS (infra/modules/s3-buckets CMK). kms:CreateKey has no resource ARN
+  # to scope to before the key exists, and KMS in general offers no
+  # name-prefix-style scoping the way EC2/ECS do — "*" is the practical
+  # floor here, mirroring the Ec2Networking/Elbv2 statements above.
+  statement {
+    sid = "KmsAppBucketsKey"
+    actions = [
+      "kms:CreateKey",
+      "kms:DescribeKey",
+      "kms:GetKeyPolicy",
+      "kms:GetKeyRotationStatus",
+      "kms:EnableKeyRotation",
+      "kms:PutKeyPolicy",
+      "kms:ScheduleKeyDeletion",
+      "kms:CancelKeyDeletion",
+      "kms:TagResource",
+      "kms:UntagResource",
+      "kms:ListResourceTags",
+      "kms:CreateAlias",
+      "kms:DeleteAlias",
+      "kms:UpdateAlias",
+      "kms:ListAliases",
+    ]
+    resources = ["*"]
+  }
+
   # Terraform remote state: read/write only the dev state object (and its
   # lock helper objects) in the existing bootstrap bucket — not the whole
   # bucket, and never other environments' keys.
@@ -856,6 +882,20 @@ data "aws_iam_policy_document" "terraform_plan_permissions" {
       "s3:ListBucket",
     ]
     resources = ["arn:aws:s3:::${var.name_prefix}-*"]
+  }
+
+  # KMS: read-only mirror of KmsAppBucketsKey above. No Create/Put/
+  # Schedule.../Cancel.../*Alias mutating actions.
+  statement {
+    sid = "KmsAppBucketsKeyReadOnly"
+    actions = [
+      "kms:DescribeKey",
+      "kms:GetKeyPolicy",
+      "kms:GetKeyRotationStatus",
+      "kms:ListResourceTags",
+      "kms:ListAliases",
+    ]
+    resources = ["*"]
   }
 
   # Terraform remote state: read-only. No s3:PutObject/DeleteObject

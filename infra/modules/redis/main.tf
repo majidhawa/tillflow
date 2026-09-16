@@ -12,8 +12,12 @@ resource "aws_elasticache_subnet_group" "this" {
 
 resource "aws_security_group" "redis" {
   name        = "${var.name_prefix}-redis-sg"
-  description = "Redis/Valkey: ingress only from the ECS tasks security group"
+  description = "Redis/Valkey: ingress only from the ECS tasks security group, no egress"
   vpc_id      = var.vpc_id
+
+  # No egress rule: same reasoning as infra/modules/rds-postgres — Redis
+  # never needs outbound access, and omitting the rule here is a real
+  # deny-all (Terraform strips AWS's implicit default egress-all rule).
 
   tags = merge(var.tags, {
     Name = "${var.name_prefix}-redis-sg"
@@ -28,15 +32,6 @@ resource "aws_security_group_rule" "redis_ingress_from_ecs" {
   to_port                  = 6379
   protocol                 = "tcp"
   description              = "ECS tasks to Redis/Valkey"
-}
-
-resource "aws_security_group_rule" "redis_egress_all" {
-  type              = "egress"
-  security_group_id = aws_security_group.redis.id
-  from_port         = 0
-  to_port           = 0
-  protocol          = "-1"
-  cidr_blocks       = ["0.0.0.0/0"]
 }
 
 resource "aws_elasticache_replication_group" "this" {

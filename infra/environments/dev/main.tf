@@ -30,9 +30,9 @@ module "ecs_cluster" {
 module "alb" {
   source = "../../modules/alb"
 
-  name_prefix       = var.name_prefix
-  vpc_id            = module.network.vpc_id
-  public_subnet_ids = module.network.public_subnet_ids
+  name_prefix = var.name_prefix
+  vpc_id      = module.network.vpc_id
+  subnet_ids  = module.network.private_subnet_ids
 
   services = [for name in var.app_names : {
     name              = name

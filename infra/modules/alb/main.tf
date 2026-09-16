@@ -32,13 +32,19 @@ resource "aws_security_group" "alb" {
   })
 }
 
-resource "aws_security_group_rule" "alb_egress_all" {
-  type              = "egress"
-  security_group_id = aws_security_group.alb.id
-  from_port         = 0
-  to_port           = 0
-  protocol          = "-1"
-  cidr_blocks       = ["0.0.0.0/0"]
+# Scoped to exactly what the ALB forwards to: the ECS tasks security
+# group, on the container ports it has target groups for. Not 0.0.0.0/0 —
+# the ALB never needs to reach anything outside the VPC.
+resource "aws_security_group_rule" "alb_egress_to_ecs" {
+  for_each = local.ecs_ingress_ports
+
+  type                     = "egress"
+  security_group_id        = aws_security_group.alb.id
+  source_security_group_id = aws_security_group.ecs_tasks.id
+  from_port                = tonumber(each.value)
+  to_port                  = tonumber(each.value)
+  protocol                 = "tcp"
+  description              = "ALB to container port ${each.value}"
 }
 
 resource "aws_security_group" "ecs_tasks" {
@@ -65,22 +71,40 @@ resource "aws_security_group_rule" "ecs_ingress_from_alb" {
   description              = "ALB to container port ${each.value}"
 }
 
-resource "aws_security_group_rule" "ecs_egress_all" {
+# Accepted exception: HTTPS-only egress to 0.0.0.0/0.
+# AVD-AWS-0104 flags any egress to the whole internet regardless of port
+# scope. ECS tasks genuinely need to reach ECR, CloudWatch/X-Ray,
+# Secrets Manager, SQS and S3's public endpoints over TLS, and no VPC
+# endpoints exist yet to keep that traffic inside the VPC. Already
+# narrowed from all-ports/all-protocols to tcp/443 only. Owner: Hawaah.
+# Revisit: add VPC interface endpoints (ecr.api, ecr.dkr, logs,
+# secretsmanager, sqs) + an S3 gateway endpoint, then drop this rule
+# entirely, post-G1.
+#trivy:ignore:AVD-AWS-0104
+resource "aws_security_group_rule" "ecs_egress_https" {
   type              = "egress"
   security_group_id = aws_security_group.ecs_tasks.id
-  from_port         = 0
-  to_port           = 0
-  protocol          = "-1"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
-  description       = "ECR pull, CloudWatch/X-Ray export, etc."
+  description       = "ECR pull, CloudWatch/X-Ray export, Secrets Manager, SQS, S3 (HTTPS only)"
 }
 
+# Internal-only: the ALB security group has no ingress rule of its own
+# (see comment above) other than from the API Gateway VPC Link. Making the
+# ALB itself internal, in private subnets, means it also carries no public
+# IP/DNS at the AWS level — API Gateway is the sole internet-facing edge.
 resource "aws_lb" "this" {
   name               = "${var.name_prefix}-alb"
-  internal           = false
+  internal           = true
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = var.public_subnet_ids
+  subnets            = var.subnet_ids
+
+  # Standard hardening: reject requests with malformed/ambiguous headers
+  # rather than passing them through to backends.
+  drop_invalid_header_fields = true
 
   tags = var.tags
 }
@@ -106,6 +130,15 @@ resource "aws_lb_target_group" "this" {
   tags = var.tags
 }
 
+# Accepted exception: plain HTTP on an internal-only ALB.
+# AVD-AWS-0054 flags this listener for not using HTTPS. This ALB is
+# unreachable from the internet (internal = true, no public IP, SG allows
+# ingress only from the API Gateway VPC Link SG) — API Gateway is the
+# TLS-terminating public edge for this API. Adding HTTPS here would need
+# an ACM certificate + domain, which is out of scope for the G1 capstone
+# deadline. Owner: Hawaah. Revisit: add an internal ACM cert + HTTPS
+# listener if this ALB ever gains a second, non-VPC-Link caller.
+#trivy:ignore:AVD-AWS-0054
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.this.arn
   port              = var.listener_port

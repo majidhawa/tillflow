@@ -1,6 +1,7 @@
 # 2-AZ VPC baseline for API Gateway -> VPC Link -> ALB -> ECS Fargate.
-# Public subnets host the ALB and NAT gateway(s); private subnets host
-# ECS Fargate tasks with outbound-only internet access via NAT.
+# Public subnets host only the NAT gateway(s); the ALB is internal and
+# lives in the private subnets alongside ECS Fargate tasks, which get
+# outbound-only internet access via NAT.
 
 locals {
   az_count = length(var.azs)
@@ -28,11 +29,14 @@ resource "aws_internet_gateway" "this" {
 }
 
 resource "aws_subnet" "public" {
-  count                   = local.az_count
-  vpc_id                  = aws_vpc.this.id
-  cidr_block              = var.public_subnet_cidrs[count.index]
-  availability_zone       = var.azs[count.index]
-  map_public_ip_on_launch = true
+  count             = local.az_count
+  vpc_id            = aws_vpc.this.id
+  cidr_block        = var.public_subnet_cidrs[count.index]
+  availability_zone = var.azs[count.index]
+  # The only thing in these subnets is the NAT gateway, which gets its
+  # public IP from an explicitly allocated aws_eip, not subnet
+  # auto-assignment — so this stays off.
+  map_public_ip_on_launch = false
 
   tags = merge(var.tags, {
     Name = "${var.name_prefix}-public-${var.azs[count.index]}"

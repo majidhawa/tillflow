@@ -28,6 +28,21 @@ resource "aws_s3_bucket_versioning" "this" {
   }
 }
 
+# One shared CMK for all purpose buckets in this module — simpler than
+# one key per bucket, and these buckets share the same access boundary
+# (the ECS task role) anyway.
+resource "aws_kms_key" "this" {
+  description         = "CMK for ${var.name_prefix} application S3 buckets"
+  enable_key_rotation = true
+
+  tags = var.tags
+}
+
+resource "aws_kms_alias" "this" {
+  name          = "alias/${var.name_prefix}-app-buckets"
+  target_key_id = aws_kms_key.this.key_id
+}
+
 resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   for_each = aws_s3_bucket.this
 
@@ -35,8 +50,10 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.this.arn
     }
+    bucket_key_enabled = true
   }
 }
 
@@ -66,6 +83,13 @@ data "aws_iam_policy_document" "task_bucket_access" {
   statement {
     actions   = ["s3:ListBucket"]
     resources = [for b in aws_s3_bucket.this : b.arn]
+  }
+
+  # SSE-KMS objects require the caller to also have key permissions, not
+  # just the S3 bucket policy grant above.
+  statement {
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
+    resources = [aws_kms_key.this.arn]
   }
 }
 

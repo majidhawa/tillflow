@@ -9,8 +9,8 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "public_subnet_ids" {
-  description = "Public subnet IDs (from the existing network module) for the ALB."
+variable "subnet_ids" {
+  description = "Subnet IDs (from the existing network module) for the ALB. Private subnets, since the ALB is internal-only — reached solely via the API Gateway VPC Link, never directly from the internet."
   type        = list(string)
 }
 

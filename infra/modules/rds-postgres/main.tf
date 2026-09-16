@@ -24,8 +24,14 @@ resource "aws_db_subnet_group" "this" {
 
 resource "aws_security_group" "rds" {
   name        = "${var.name_prefix}-rds-sg"
-  description = "PostgreSQL: ingress only from the ECS tasks security group"
+  description = "PostgreSQL: ingress only from the ECS tasks security group, no egress"
   vpc_id      = var.vpc_id
+
+  # No egress rule: Postgres never needs to initiate outbound connections
+  # for normal operation, and Terraform's aws_security_group already
+  # strips AWS's implicit default allow-all-egress rule at creation, so
+  # omitting one here means true deny-all egress, not just an unmanaged
+  # default.
 
   tags = merge(var.tags, {
     Name = "${var.name_prefix}-rds-sg"
@@ -40,15 +46,6 @@ resource "aws_security_group_rule" "rds_ingress_from_ecs" {
   to_port                  = 5432
   protocol                 = "tcp"
   description              = "ECS tasks to PostgreSQL"
-}
-
-resource "aws_security_group_rule" "rds_egress_all" {
-  type              = "egress"
-  security_group_id = aws_security_group.rds.id
-  from_port         = 0
-  to_port           = 0
-  protocol          = "-1"
-  cidr_blocks       = ["0.0.0.0/0"]
 }
 
 resource "aws_db_instance" "this" {

@@ -27,13 +27,30 @@ resource "aws_s3_bucket_versioning" "terraform_state" {
   }
 }
 
+# Customer-managed key so state encryption isn't tied to the account-wide
+# AWS-managed S3 key — this bucket is applied manually (outside the CI
+# OIDC roles), so the key needs no cross-module IAM plumbing.
+resource "aws_kms_key" "terraform_state" {
+  description         = "CMK for the ${var.name_prefix} Terraform state bucket"
+  enable_key_rotation = true
+
+  tags = var.tags
+}
+
+resource "aws_kms_alias" "terraform_state" {
+  name          = "alias/${var.name_prefix}-terraform-state"
+  target_key_id = aws_kms_key.terraform_state.key_id
+}
+
 resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
   bucket = aws_s3_bucket.terraform_state.id
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.terraform_state.arn
     }
+    bucket_key_enabled = true
   }
 }
 

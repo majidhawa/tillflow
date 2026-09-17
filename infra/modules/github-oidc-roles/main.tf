@@ -199,7 +199,14 @@ resource "aws_iam_role_policy" "deploy" {
 # AdministratorAccess, and IAM management is constrained to devops-g8-*
 # roles rather than being account-wide.
 
-data "aws_iam_policy_document" "terraform_permissions" {
+# Split into two documents/inline policies purely to stay under IAM's
+# 10,240-byte inline-policy size limit on a single aws_iam_role_policy —
+# not a permissions or scope change. "_compute" covers networking/ECS/ECR/
+# logs/API Gateway; "_platform" covers everything else (data stores,
+# messaging, KMS, Terraform state, and IAM/OIDC bootstrap permissions).
+# Every statement below is preserved exactly once, verbatim, from the
+# single document this replaced.
+data "aws_iam_policy_document" "terraform_permissions_compute" {
 
   # EC2 / VPC / networking (infra/modules/network, alb).
   # Most VPC-level EC2 actions have no resource-level ARN support in IAM
@@ -504,6 +511,11 @@ data "aws_iam_policy_document" "terraform_permissions" {
       "arn:aws:apigateway:${var.region}::/tags/*",
     ]
   }
+}
+
+# See the comment on terraform_permissions_compute above — same split,
+# same role, no scope change.
+data "aws_iam_policy_document" "terraform_permissions_platform" {
 
   # RDS PostgreSQL (infra/modules/rds-postgres), scoped to the one instance
   # and its subnet group.
@@ -595,6 +607,8 @@ data "aws_iam_policy_document" "terraform_permissions" {
       "s3:PutBucketPolicy",
       "s3:GetBucketPolicy",
       "s3:DeleteBucketPolicy",
+      "s3:GetBucketWebsite",
+      "s3:GetAccelerateConfiguration",
     ]
     resources = ["arn:aws:s3:::${var.name_prefix}-*"]
   }
@@ -800,10 +814,16 @@ data "aws_iam_policy_document" "terraform_permissions" {
   }
 }
 
-resource "aws_iam_role_policy" "terraform" {
-  name   = "${var.name_prefix}-github-terraform-permissions"
+resource "aws_iam_role_policy" "terraform_compute" {
+  name   = "${var.name_prefix}-github-terraform-permissions-compute"
   role   = aws_iam_role.github_terraform.id
-  policy = data.aws_iam_policy_document.terraform_permissions.json
+  policy = data.aws_iam_policy_document.terraform_permissions_compute.json
+}
+
+resource "aws_iam_role_policy" "terraform_platform" {
+  name   = "${var.name_prefix}-github-terraform-permissions-platform"
+  role   = aws_iam_role.github_terraform.id
+  policy = data.aws_iam_policy_document.terraform_permissions_platform.json
 }
 
 # --- Terraform PLAN role permissions ---
@@ -1035,6 +1055,8 @@ data "aws_iam_policy_document" "terraform_plan_permissions" {
       "s3:GetLifecycleConfiguration",
       "s3:GetBucketPolicy",
       "s3:GetBucketCORS",
+      "s3:GetBucketWebsite",
+      "s3:GetAccelerateConfiguration",
     ]
     resources = ["arn:aws:s3:::${var.name_prefix}-*"]
   }

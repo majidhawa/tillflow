@@ -211,6 +211,8 @@ module "github_oidc_roles" {
   region             = var.region
   github_org         = var.github_org
   github_repo        = var.github_repo
+  github_org_id      = var.github_org_id
+  github_repo_id     = var.github_repo_id
   github_environment = var.github_environment
   ecs_cluster_name   = module.ecs_cluster.cluster_name
   app_names          = var.app_names

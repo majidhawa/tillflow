@@ -180,6 +180,18 @@ variable "github_repo" {
   default     = "tillflow"
 }
 
+variable "github_org_id" {
+  description = "Numeric GitHub owner ID used in customized GitHub Actions OIDC subjects."
+  type        = string
+  default     = "158444918"
+}
+
+variable "github_repo_id" {
+  description = "Numeric GitHub repository ID used in customized GitHub Actions OIDC subjects."
+  type        = string
+  default     = "1367638567"
+}
+
 variable "github_environment" {
   description = "GitHub Environment name terraform.yml's apply job targets."
   type        = string

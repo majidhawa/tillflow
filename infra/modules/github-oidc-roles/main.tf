@@ -19,8 +19,14 @@ data "aws_iam_openid_connect_provider" "github" {
 }
 
 locals {
-  account_id   = data.aws_caller_identity.current.account_id
-  repo_subject = "repo:${var.github_org}/${var.github_repo}"
+  account_id = data.aws_caller_identity.current.account_id
+
+  # This repo was created after GitHub's 2026-07-15 cutover to immutable
+  # subject claims, so it emits sub claims of the form
+  # repo:OWNER@OWNER_ID/REPO@REPO_ID:... rather than the legacy
+  # repo:OWNER/REPO:... form. See
+  # https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/
+  repo_subject = "repo:${var.github_org}@${var.github_org_id}/${var.github_repo}@${var.github_repo_id}"
 
   ecs_execution_role_name = "${var.name_prefix}-ecs-execution"
   ecs_task_role_name      = "${var.name_prefix}-ecs-task"
@@ -276,6 +282,7 @@ data "aws_iam_policy_document" "terraform_permissions" {
       "elasticloadbalancing:DeleteListener",
       "elasticloadbalancing:ModifyListener",
       "elasticloadbalancing:DescribeListeners",
+      "elasticloadbalancing:DescribeListenerAttributes",
       "elasticloadbalancing:CreateRule",
       "elasticloadbalancing:DeleteRule",
       "elasticloadbalancing:ModifyRule",
@@ -844,6 +851,7 @@ data "aws_iam_policy_document" "terraform_plan_permissions" {
       "elasticloadbalancing:DescribeTargetGroups",
       "elasticloadbalancing:DescribeTargetGroupAttributes",
       "elasticloadbalancing:DescribeListeners",
+      "elasticloadbalancing:DescribeListenerAttributes",
       "elasticloadbalancing:DescribeRules",
       "elasticloadbalancing:DescribeTargetHealth",
       "elasticloadbalancing:DescribeTags",
@@ -890,12 +898,17 @@ data "aws_iam_policy_document" "terraform_plan_permissions" {
     resources = local.ecr_repository_arns
   }
 
+  # logs:DescribeLogGroups has no resource-level permission support at all
+  # (AWS requires Resource = "*" for it), unlike ListTagsForResource below.
   statement {
-    sid = "CloudWatchLogGroupsReadOnly"
-    actions = [
-      "logs:DescribeLogGroups",
-      "logs:ListTagsForResource",
-    ]
+    sid       = "CloudWatchLogGroupsDescribeReadOnly"
+    actions   = ["logs:DescribeLogGroups"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid     = "CloudWatchLogGroupsReadOnly"
+    actions = ["logs:ListTagsForResource"]
     resources = [
       "arn:aws:logs:${var.region}:${local.account_id}:log-group:/ecs/${var.name_prefix}-*",
       "arn:aws:logs:${var.region}:${local.account_id}:log-group:/ecs/${var.name_prefix}-*:*",
@@ -964,10 +977,17 @@ data "aws_iam_policy_document" "terraform_plan_permissions" {
     ]
   }
 
+  # rds:DescribeDBInstances has no resource-level permission support at all
+  # (AWS requires Resource = "*" for it), unlike the actions below.
+  statement {
+    sid       = "RdsPostgresDescribeReadOnly"
+    actions   = ["rds:DescribeDBInstances"]
+    resources = ["*"]
+  }
+
   statement {
     sid = "RdsPostgresReadOnly"
     actions = [
-      "rds:DescribeDBInstances",
       "rds:DescribeDBSubnetGroups",
       "rds:ListTagsForResource",
     ]
@@ -1014,6 +1034,7 @@ data "aws_iam_policy_document" "terraform_plan_permissions" {
       "s3:ListBucket",
       "s3:GetLifecycleConfiguration",
       "s3:GetBucketPolicy",
+      "s3:GetBucketCORS",
     ]
     resources = ["arn:aws:s3:::${var.name_prefix}-*"]
   }
@@ -1078,18 +1099,27 @@ data "aws_iam_policy_document" "terraform_plan_permissions" {
   }
 
   # Secrets Manager: metadata only. DescribeSecret returns name/ARN/
-  # description/tags/rotation config — never the secret value.
-  # secretsmanager:GetSecretValue and PutSecretValue are intentionally NOT
-  # granted here. Consequence: Terraform's refresh of the
-  # aws_secretsmanager_secret_version resource (infra/modules/rds-postgres)
-  # needs GetSecretValue to detect drift on the stored value — under this
-  # role, that one resource's refresh will fail with AccessDenied. This is
-  # an accepted, documented trade-off of keeping the PR plan role
-  # read-only against secret values — see docs/cicd.md.
+  # description/tags/rotation config, and GetResourcePolicy returns the
+  # resource-based policy document (if any) — neither returns the secret
+  # value. secretsmanager:GetSecretValue and PutSecretValue are
+  # intentionally NOT granted here.
   statement {
     sid       = "SecretsManagerMetadataOnly"
-    actions   = ["secretsmanager:DescribeSecret"]
+    actions   = ["secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy"]
     resources = ["arn:aws:secretsmanager:${var.region}:${local.account_id}:secret:${var.name_prefix}-*"]
+  }
+
+  # aws_secretsmanager_secret_version.db (infra/modules/rds-postgres) is
+  # configured with secret_string_wo, not secret_string. Once that resource
+  # has gone through one apply in write-only mode, the AWS provider's
+  # refresh path for it calls secretsmanager:ListSecretVersionIds instead
+  # of GetSecretValue (version/staging metadata only, never the plaintext).
+  # Scoped narrower than SecretsManagerMetadataOnly above: only the one
+  # secret this applies to, not every devops-g8-* secret.
+  statement {
+    sid       = "SecretsManagerRdsVersionMetadataOnly"
+    actions   = ["secretsmanager:ListSecretVersionIds"]
+    resources = ["arn:aws:secretsmanager:${var.region}:${local.account_id}:secret:${var.name_prefix}-rds-postgres-credentials-*"]
   }
 
   # IAM: read-only metadata for the same devops-g8-* roles the apply role

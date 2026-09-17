@@ -22,6 +22,16 @@ variable "github_repo" {
   default     = "tillflow"
 }
 
+variable "github_org_id" {
+  description = "Numeric GitHub owner ID used in this repository's customized OIDC subject claim."
+  type        = string
+}
+
+variable "github_repo_id" {
+  description = "Numeric GitHub repository ID used in this repository's customized OIDC subject claim."
+  type        = string
+}
+
 variable "github_environment" {
   description = "GitHub Environment name used by terraform.yml's apply job. GitHub issues the OIDC subject as repo:ORG/REPO:environment:NAME for any job that targets an environment, regardless of branch."
   type        = string

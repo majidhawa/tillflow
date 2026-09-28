@@ -1,4 +1,4 @@
-// Payments service — G1 golden-path stub, extended with Daraja OAuth.
+// Payments service — Daraja OAuth + STK Push.
 package main
 
 import (
@@ -16,7 +16,6 @@ func ok(body string) http.HandlerFunc {
 }
 
 // tokenDebugHandler is temporary — confirms OAuth works end to end.
-// Remove once STK Push is using getToken() directly.
 func tokenDebugHandler(auth *darajaAuth) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token, err := auth.getToken()
@@ -41,12 +40,20 @@ func main() {
 	}
 
 	auth := newDarajaAuth()
+	store := newPaymentStore()
+	cfg := stkPushConfig{
+		baseURL:     os.Getenv("DARAJA_BASE_URL"),
+		shortcode:   os.Getenv("DARAJA_SHORTCODE"),
+		passkey:     os.Getenv("DARAJA_PASSKEY"),
+		callbackURL: os.Getenv("DARAJA_CALLBACK_URL"),
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", ok(name+": ok"))
 	mux.HandleFunc("/health", ok("healthy"))
 	mux.HandleFunc("/ready", ok("ready"))
 	mux.HandleFunc("/debug/token", tokenDebugHandler(auth))
+	mux.HandleFunc("/payments", stkPushHandler(auth, store, cfg))
 
 	log.Printf("%s listening on :%s", name, port)
 	log.Fatal(http.ListenAndServe(":"+port, mux))

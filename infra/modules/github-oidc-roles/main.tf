@@ -609,6 +609,7 @@ data "aws_iam_policy_document" "terraform_permissions_platform" {
       "s3:DeleteBucketPolicy",
       "s3:GetBucketWebsite",
       "s3:GetAccelerateConfiguration",
+      "s3:GetBucketRequestPayment",
     ]
     resources = ["arn:aws:s3:::${var.name_prefix}-*"]
   }

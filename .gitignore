@@ -50,3 +50,5 @@ tfplan
 # Local tooling
 tmp/
 .cache/
+sandbox_cert.cer
+*.log

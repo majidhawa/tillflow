@@ -1,5 +1,5 @@
-// Payments service — Daraja OAuth, STK Push, callback handling, and
-// transaction status query with idempotent reconciliation.
+// Payments service — Daraja OAuth, STK Push, callback handling,
+// transaction status query, and B2C payouts.
 package main
 
 import (
@@ -50,6 +50,16 @@ func main() {
 		callbackURL: os.Getenv("DARAJA_CALLBACK_URL"),
 	}
 
+	payouts := newPayoutStore()
+	b2cCfg := b2cConfig{
+		baseURL:            os.Getenv("DARAJA_BASE_URL"),
+		initiatorName:      os.Getenv("DARAJA_INITIATOR_NAME"),
+		securityCredential: os.Getenv("DARAJA_B2C_SECURITY_CREDENTIAL"),
+		shortcode:          os.Getenv("DARAJA_B2C_SHORTCODE"),
+		resultURL:          os.Getenv("DARAJA_B2C_RESULT_URL"),
+		timeoutURL:         os.Getenv("DARAJA_B2C_TIMEOUT_URL"),
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", ok(name+": ok"))
 	mux.HandleFunc("/health", ok("healthy"))
@@ -58,6 +68,9 @@ func main() {
 	mux.HandleFunc("/payments", stkPushHandler(auth, store, callbacks, cfg))
 	mux.HandleFunc("/payments/callback", callbackHandler(callbacks))
 	mux.HandleFunc("/payments/query", queryHandler(auth, callbacks, cfg))
+	mux.HandleFunc("/payments/b2c", b2cHandler(auth, payouts, b2cCfg))
+	mux.HandleFunc("/payments/b2c/callback", b2cCallbackHandler(payouts))
+	mux.HandleFunc("/payments/b2c/timeout", b2cTimeoutHandler())
 
 	log.Printf("%s listening on :%s", name, port)
 	log.Fatal(http.ListenAndServe(":"+port, mux))

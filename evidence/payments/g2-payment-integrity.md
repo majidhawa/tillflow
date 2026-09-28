@@ -86,6 +86,54 @@ Repeating the identical request returned the same response instantly,
 with no second call to Daraja logged. Confirms idempotency on the
 disbursement path, same as STK Push.
 
+## 7. Commission daily close - tenant isolation, aggregation, and replay-safety
+
+Request (one attendant with two sales under the correct tenant, one sale
+deliberately under a different tenant):
+
+    curl -X POST localhost:8081/commission/close \
+      -H "Content-Type: application/json" \
+      -d '{"tenant_id":"tenant_001","close_date":"2026-09-29","commission_pct":10,"sales":[{"sale_id":"sale_a","tenant_id":"tenant_001","attendant_id":"att_1","attendant_phone":"254708374149","amount_minor":10000,"currency":"KES"},{"sale_id":"sale_b","tenant_id":"tenant_001","attendant_id":"att_1","attendant_phone":"254708374149","amount_minor":5000,"currency":"KES"},{"sale_id":"sale_c","tenant_id":"tenant_002","attendant_id":"att_1","attendant_phone":"254708374149","amount_minor":99999,"currency":"KES"}]}'
+
+Commission service log:
+
+    commission: skipping sale sale_c - tenant mismatch (sale tenant=tenant_002, close tenant=tenant_001)
+
+Response:
+
+    {"close_date":"2026-09-29","ledger":[{"attendant_id":"att_1","close_date":"2026-09-29","total_sales_minor":15000,"commission_minor":1500,"currency":"KES","payout_state":"requested","idempotency_key":"tenant_001:att_1:2026-09-29"}],"tenant_id":"tenant_001"}
+
+This confirms: tenant isolation (sale_c excluded from the total),
+correct per-attendant aggregation (15000 = sale_a + sale_b only), and
+correct commission math (1500 = 10% of 15000). Payments' log confirmed
+the B2C call reached Daraja and was accepted (ResponseCode: 0).
+
+Replay-safety: the identical close request was repeated. The response
+was identical and returned instantly, and Payments' log showed no
+second B2C call was made - confirming the brief's requirement that
+"replay must never double-pay."
+
+## 8. Provider-declined and idempotency unit tests
+
+Since the shared sandbox test number auto-times-out rather than
+producing a genuine decline, the following are covered by unit tests
+in callback_test.go instead of live sandbox calls:
+
+    go test -v ./...
+    === RUN   TestApplyCallback_ProviderDeclined
+    --- PASS: TestApplyCallback_ProviderDeclined (0.00s)
+    === RUN   TestApplyCallback_Timeout
+    --- PASS: TestApplyCallback_Timeout (0.00s)
+    === RUN   TestApplyCallback_Success
+    --- PASS: TestApplyCallback_Success (0.00s)
+    === RUN   TestApplyCallback_Idempotent
+    --- PASS: TestApplyCallback_Idempotent (0.00s)
+    PASS
+
+These confirm ResultCode 1032 (genuine decline) is classified as
+failed, distinct from 1037 (timeout, classified timed_out), and that a
+second callback on an already-terminal payment is a safe no-op.
+
 ## Known limitations
 
 - B2C result callback: Daraja's B2C result callback did not arrive

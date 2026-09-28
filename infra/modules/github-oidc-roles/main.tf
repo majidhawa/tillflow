@@ -590,6 +590,44 @@ data "aws_iam_policy_document" "terraform_permissions_workloads" {
     ]
     resources = ["arn:aws:sqs:${var.region}:${local.account_id}:${var.name_prefix}-*"]
   }
+
+  # CloudWatch alarms (infra/modules/observability). Scoped to the
+  # name_prefix-owned alarm ARNs only. cloudwatch:PutMetricAlarm,
+  # DeleteAlarms, DescribeAlarms, TagResource and UntagResource all support
+  # resource-level scoping to a specific alarm ARN pattern.
+  statement {
+    sid = "CloudWatchAlarms"
+    actions = [
+      "cloudwatch:PutMetricAlarm",
+      "cloudwatch:DeleteAlarms",
+      "cloudwatch:DescribeAlarms",
+      "cloudwatch:TagResource",
+      "cloudwatch:UntagResource",
+    ]
+    resources = ["arn:aws:cloudwatch:${var.region}:${local.account_id}:alarm:${var.name_prefix}-*"]
+  }
+
+  # CloudWatch dashboards (infra/modules/observability). Dashboard ARNs have
+  # no region segment (arn:aws:cloudwatch::<account>:dashboard/<name>),
+  # unlike alarm ARNs. PutDashboard/GetDashboard/DeleteDashboards all
+  # support scoping to a specific dashboard ARN.
+  statement {
+    sid = "CloudWatchDashboards"
+    actions = [
+      "cloudwatch:PutDashboard",
+      "cloudwatch:GetDashboard",
+      "cloudwatch:DeleteDashboards",
+    ]
+    resources = ["arn:aws:cloudwatch::${local.account_id}:dashboard/${var.name_prefix}-*"]
+  }
+
+  # ListDashboards has no resource type at all in the IAM service
+  # reference — it requires Resource = "*" and cannot be scoped narrower.
+  statement {
+    sid       = "CloudWatchListDashboards"
+    actions   = ["cloudwatch:ListDashboards"]
+    resources = ["*"]
+  }
 }
 
 # See the comment on terraform_permissions_network above — same split,
@@ -1113,6 +1151,30 @@ data "aws_iam_policy_document" "terraform_plan_permissions" {
       "sqs:ListQueueTags",
     ]
     resources = ["arn:aws:sqs:${var.region}:${local.account_id}:${var.name_prefix}-*"]
+  }
+
+  # Read-only mirror of CloudWatchAlarms above.
+  statement {
+    sid = "CloudWatchAlarmsReadOnly"
+    actions = [
+      "cloudwatch:DescribeAlarms",
+      "cloudwatch:ListTagsForResource",
+    ]
+    resources = ["arn:aws:cloudwatch:${var.region}:${local.account_id}:alarm:${var.name_prefix}-*"]
+  }
+
+  # Read-only mirror of CloudWatchDashboards above.
+  statement {
+    sid       = "CloudWatchDashboardsReadOnly"
+    actions   = ["cloudwatch:GetDashboard"]
+    resources = ["arn:aws:cloudwatch::${local.account_id}:dashboard/${var.name_prefix}-*"]
+  }
+
+  # Read-only mirror of CloudWatchListDashboards above.
+  statement {
+    sid       = "CloudWatchListDashboardsReadOnly"
+    actions   = ["cloudwatch:ListDashboards"]
+    resources = ["*"]
   }
 
   statement {

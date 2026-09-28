@@ -3,6 +3,11 @@ output "alb_arn" {
   value       = aws_lb.this.arn
 }
 
+output "alb_arn_suffix" {
+  description = "ALB ARN suffix (e.g. app/name/id) — the CloudWatch dimension form, not the full ARN. Used by infra/modules/observability."
+  value       = aws_lb.this.arn_suffix
+}
+
 output "alb_dns_name" {
   description = "Public DNS name of the ALB."
   value       = aws_lb.this.dns_name
@@ -21,6 +26,11 @@ output "listener_arn" {
 output "target_group_arns" {
   description = "Map of service name to target group ARN."
   value       = { for name, tg in aws_lb_target_group.this : name => tg.arn }
+}
+
+output "target_group_arn_suffixes" {
+  description = "Map of service name to target group ARN suffix (e.g. targetgroup/name/id) — the CloudWatch dimension form. Used by infra/modules/observability."
+  value       = { for name, tg in aws_lb_target_group.this : name => tg.arn_suffix }
 }
 
 output "alb_security_group_id" {

@@ -24,7 +24,7 @@ resource "aws_db_subnet_group" "this" {
 
 resource "aws_security_group" "rds" {
   name        = "${var.name_prefix}-rds-sg"
-  description = "PostgreSQL: ingress only from the ECS tasks security group, no egress"
+  description = "PostgreSQL: ingress only from the ECS tasks security group"
   vpc_id      = var.vpc_id
 
   # No egress rule: Postgres never needs to initiate outbound connections

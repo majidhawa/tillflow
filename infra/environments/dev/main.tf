@@ -270,3 +270,29 @@ resource "aws_security_group_rule" "alb_ingress_from_apigw_vpc_link" {
   protocol                 = "tcp"
   description              = "API Gateway VPC Link to ALB listener"
 }
+
+module "observability" {
+  source = "../../modules/observability"
+
+  name_prefix            = var.name_prefix
+  region                 = var.region
+  alarm_sns_topic_arn    = module.slack_alerts.alerts_topic_arn
+  alb_arn_suffix         = module.alb.alb_arn_suffix
+  ecs_cluster_name       = module.ecs_cluster.cluster_name
+  api_gateway_id         = module.apigw.api_id
+  synthetics_canary_name = module.synthetic_probe.canary_name
+
+  # ecs_service_name is the deterministic name the service would have once
+  # enabled ("${name_prefix}-${name}", matching infra/modules/ecs-service's
+  # internal naming) — not a lookup of a live service, since enable_services
+  # defaults to false and module.ecs_service_*'s own service_name output is
+  # null until then.
+  services = {
+    for name in var.app_names : name => {
+      target_group_arn_suffix = module.alb.target_group_arn_suffixes[name]
+      ecs_service_name        = "${var.name_prefix}-${name}"
+    }
+  }
+
+  tags = var.tags
+}

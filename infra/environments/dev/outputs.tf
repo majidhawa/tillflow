@@ -196,3 +196,15 @@ output "api_gateway_vpc_link_id" {
   description = "ID of the API Gateway VPC Link."
   value       = module.apigw.vpc_link_id
 }
+
+# --- Observability ---
+
+output "observability_dashboard_name" {
+  description = "Name of the CloudWatch operational dashboard."
+  value       = module.observability.dashboard_name
+}
+
+output "observability_alarm_names" {
+  description = "Names of all CloudWatch alarms created for the golden path (for evidence/reference)."
+  value       = module.observability.alarm_names
+}

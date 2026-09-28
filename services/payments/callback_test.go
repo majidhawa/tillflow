@@ -75,3 +75,56 @@ func TestApplyCallback_Idempotent(t *testing.T) {
 		t.Errorf("expected state to remain 'failed' from first callback, got %q", result.State)
 	}
 }
+
+// TestApplyCallback_DuplicateCallback verifies that the exact same
+// callback body, delivered twice (Daraja's documented at-least-once
+// delivery behavior), does not double-process — the payment must reach
+// its terminal state exactly once, and the second delivery must report
+// no change.
+func TestApplyCallback_DuplicateCallback(t *testing.T) {
+	store := newCallbackStore()
+	payment := &paymentResponse{PaymentID: "pay_dup", State: "pending"}
+	store.registerPending("checkout_dup", payment)
+
+	first, firstChanged := store.applyCallback("checkout_dup", 0)
+	second, secondChanged := store.applyCallback("checkout_dup", 0) // identical callback, delivered again
+
+	if !firstChanged {
+		t.Fatal("expected first delivery to change state")
+	}
+	if secondChanged {
+		t.Error("expected duplicate delivery to report no change")
+	}
+	if first.State != "confirmed" || second.State != "confirmed" {
+		t.Errorf("expected both to show state 'confirmed', got first=%q second=%q", first.State, second.State)
+	}
+}
+
+// TestApplyCallback_ReorderedCallback verifies that callbacks arriving
+// out of order — a timeout arriving after the payment was already
+// confirmed by an earlier callback — does not overwrite the earlier,
+// correct terminal state with a stale, later-arriving result.
+func TestApplyCallback_ReorderedCallback(t *testing.T) {
+	store := newCallbackStore()
+	payment := &paymentResponse{PaymentID: "pay_reordered", State: "pending"}
+	store.registerPending("checkout_reordered", payment)
+
+	// The confirmation arrives first...
+	confirmed, confirmedChanged := store.applyCallback("checkout_reordered", 0)
+	// ...then a stale timeout callback for the same transaction arrives
+	// late, out of order.
+	stale, staleChanged := store.applyCallback("checkout_reordered", 1037)
+
+	if !confirmedChanged {
+		t.Fatal("expected the first (confirmation) callback to change state")
+	}
+	if staleChanged {
+		t.Error("expected the stale, reordered callback to report no change")
+	}
+	if confirmed.State != "confirmed" {
+		t.Errorf("expected state 'confirmed' after first callback, got %q", confirmed.State)
+	}
+	if stale.State != "confirmed" {
+		t.Errorf("expected state to REMAIN 'confirmed' despite stale reordered timeout, got %q", stale.State)
+	}
+}

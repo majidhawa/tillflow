@@ -199,14 +199,20 @@ resource "aws_iam_role_policy" "deploy" {
 # AdministratorAccess, and IAM management is constrained to devops-g8-*
 # roles rather than being account-wide.
 
-# Split into two documents/inline policies purely to stay under IAM's
-# 10,240-byte inline-policy size limit on a single aws_iam_role_policy —
-# not a permissions or scope change. "_compute" covers networking/ECS/ECR/
-# logs/API Gateway; "_platform" covers everything else (data stores,
-# messaging, KMS, Terraform state, and IAM/OIDC bootstrap permissions).
-# Every statement below is preserved exactly once, verbatim, from the
-# single document this replaced.
-data "aws_iam_policy_document" "terraform_permissions_compute" {
+# Split into three managed policies (not inline) purely to stay under IAM's
+# size limits — not a permissions or scope change. Inline policies on a role
+# share ONE aggregate 10,240-byte budget across all of them combined (AWS
+# IAM quota docs: "the total aggregate policy size... per entity"), so
+# splitting into more inline documents never actually helps once the total
+# content exceeds that shared pool. Customer-managed policies don't have
+# this problem — each has its own independent 6,144-byte budget — so each
+# of these three documents backs its own aws_iam_policy + role attachment
+# instead of an aws_iam_role_policy. "_network" covers EC2/ELB/ECS/ECR;
+# "_workloads" covers logging/messaging/Lambda/Synthetics/API Gateway/RDS/
+# ElastiCache/SQS; "_platform" covers S3/KMS/Terraform state/EventBridge/
+# Secrets Manager/IAM/OIDC bootstrap. Every statement is preserved exactly
+# once, verbatim, from the single document this originally replaced.
+data "aws_iam_policy_document" "terraform_permissions_network" {
 
   # EC2 / VPC / networking (infra/modules/network, alb).
   # Most VPC-level EC2 actions have no resource-level ARN support in IAM
@@ -372,6 +378,12 @@ data "aws_iam_policy_document" "terraform_permissions_compute" {
     ]
     resources = local.ecr_repository_arns
   }
+}
+
+# See the comment on terraform_permissions_network above — same split,
+# same role, no scope change. Covers logging/messaging/compute-adjacent
+# permissions plus RDS/ElastiCache/SQS (merged with the block below).
+data "aws_iam_policy_document" "terraform_permissions_workloads" {
 
   # CloudWatch Logs (ECS app log groups + API Gateway access logs).
   statement {
@@ -511,11 +523,6 @@ data "aws_iam_policy_document" "terraform_permissions_compute" {
       "arn:aws:apigateway:${var.region}::/tags/*",
     ]
   }
-}
-
-# See the comment on terraform_permissions_compute above — same split,
-# same role, no scope change.
-data "aws_iam_policy_document" "terraform_permissions_platform" {
 
   # RDS PostgreSQL (infra/modules/rds-postgres), scoped to the one instance
   # and its subnet group.
@@ -583,6 +590,11 @@ data "aws_iam_policy_document" "terraform_permissions_platform" {
     ]
     resources = ["arn:aws:sqs:${var.region}:${local.account_id}:${var.name_prefix}-*"]
   }
+}
+
+# See the comment on terraform_permissions_network above — same split,
+# same role, no scope change.
+data "aws_iam_policy_document" "terraform_permissions_platform" {
 
   # Application S3 buckets (infra/modules/s3-buckets) — receipts/reports/
   # audit. Bucket names carry a random suffix, so scoped by name_prefix.
@@ -609,6 +621,10 @@ data "aws_iam_policy_document" "terraform_permissions_platform" {
       "s3:DeleteBucketPolicy",
       "s3:GetBucketWebsite",
       "s3:GetAccelerateConfiguration",
+      "s3:GetBucketLogging",
+      "s3:GetBucketObjectLockConfiguration",
+      "s3:GetReplicationConfiguration",
+      "s3:GetBucketRequestPayment",
     ]
     resources = ["arn:aws:s3:::${var.name_prefix}-*"]
   }
@@ -754,6 +770,42 @@ data "aws_iam_policy_document" "terraform_permissions_platform" {
     }
   }
 
+  # This role manages its own customer-managed policies (the
+  # terraform_permissions_* split below) — creation/versioning/deletion of
+  # those specific devops-g8-* managed policies only, nothing account-wide.
+  statement {
+    sid = "ManageDevopsG8ManagedPolicies"
+    actions = [
+      "iam:CreatePolicy",
+      "iam:DeletePolicy",
+      "iam:CreatePolicyVersion",
+      "iam:DeletePolicyVersion",
+      "iam:GetPolicy",
+      "iam:GetPolicyVersion",
+      "iam:ListPolicyVersions",
+      "iam:TagPolicy",
+      "iam:UntagPolicy",
+    ]
+    resources = ["arn:aws:iam::${local.account_id}:policy/${var.name_prefix}-*"]
+  }
+
+  # Attaching those same managed policies is restricted to this one role
+  # and only for policy ARNs under the devops-g8-* prefix — not general
+  # AttachRolePolicy over any policy/role.
+  statement {
+    sid     = "AttachDevopsG8ManagedPoliciesToTerraformRole"
+    actions = ["iam:AttachRolePolicy", "iam:DetachRolePolicy"]
+    resources = [
+      "arn:aws:iam::${local.account_id}:role/${var.name_prefix}-github-terraform-role",
+    ]
+
+    condition {
+      test     = "ArnLike"
+      variable = "iam:PolicyARN"
+      values   = ["arn:aws:iam::${local.account_id}:policy/${var.name_prefix}-*"]
+    }
+  }
+
   # PassRole is limited to the two ECS runtime roles, and only when the
   # role is being passed to the ECS tasks service — never a blanket grant.
   statement {
@@ -814,16 +866,37 @@ data "aws_iam_policy_document" "terraform_permissions_platform" {
   }
 }
 
-resource "aws_iam_role_policy" "terraform_compute" {
-  name   = "${var.name_prefix}-github-terraform-permissions-compute"
-  role   = aws_iam_role.github_terraform.id
-  policy = data.aws_iam_policy_document.terraform_permissions_compute.json
+resource "aws_iam_policy" "terraform_network" {
+  name   = "${var.name_prefix}-github-terraform-permissions-network"
+  policy = data.aws_iam_policy_document.terraform_permissions_network.json
+  tags   = var.tags
 }
 
-resource "aws_iam_role_policy" "terraform_platform" {
+resource "aws_iam_role_policy_attachment" "terraform_network" {
+  role       = aws_iam_role.github_terraform.name
+  policy_arn = aws_iam_policy.terraform_network.arn
+}
+
+resource "aws_iam_policy" "terraform_workloads" {
+  name   = "${var.name_prefix}-github-terraform-permissions-workloads"
+  policy = data.aws_iam_policy_document.terraform_permissions_workloads.json
+  tags   = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "terraform_workloads" {
+  role       = aws_iam_role.github_terraform.name
+  policy_arn = aws_iam_policy.terraform_workloads.arn
+}
+
+resource "aws_iam_policy" "terraform_platform" {
   name   = "${var.name_prefix}-github-terraform-permissions-platform"
-  role   = aws_iam_role.github_terraform.id
   policy = data.aws_iam_policy_document.terraform_permissions_platform.json
+  tags   = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "terraform_platform" {
+  role       = aws_iam_role.github_terraform.name
+  policy_arn = aws_iam_policy.terraform_platform.arn
 }
 
 # --- Terraform PLAN role permissions ---
@@ -1057,6 +1130,10 @@ data "aws_iam_policy_document" "terraform_plan_permissions" {
       "s3:GetBucketCORS",
       "s3:GetBucketWebsite",
       "s3:GetAccelerateConfiguration",
+      "s3:GetBucketLogging",
+      "s3:GetBucketObjectLockConfiguration",
+      "s3:GetReplicationConfiguration",
+      "s3:GetBucketRequestPayment",
     ]
     resources = ["arn:aws:s3:::${var.name_prefix}-*"]
   }
@@ -1156,6 +1233,20 @@ data "aws_iam_policy_document" "terraform_plan_permissions" {
       "iam:ListAttachedRolePolicies",
     ]
     resources = ["arn:aws:iam::${local.account_id}:role/${var.name_prefix}-*"]
+  }
+
+  # IAM: read-only metadata for the devops-g8-* customer-managed policies
+  # (terraform_permissions_* below) — needed to refresh the aws_iam_policy
+  # resources. No Create/Delete/CreatePolicyVersion/DeletePolicyVersion/
+  # Attach/Detach anywhere in this policy.
+  statement {
+    sid = "IamManagedPolicyMetadataReadOnly"
+    actions = [
+      "iam:GetPolicy",
+      "iam:GetPolicyVersion",
+      "iam:ListPolicyVersions",
+    ]
+    resources = ["arn:aws:iam::${local.account_id}:policy/${var.name_prefix}-*"]
   }
 
   statement {

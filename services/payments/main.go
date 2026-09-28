@@ -16,18 +16,7 @@ func ok(body string) http.HandlerFunc {
 	}
 }
 
-// tokenDebugHandler is temporary — confirms OAuth works end to end.
-func tokenDebugHandler(auth *darajaAuth) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		token, err := auth.getToken()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
-		}
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		_, _ = w.Write([]byte("token acquired: " + token[:10] + "...\n"))
-	}
-}
+
 
 func main() {
 	port := os.Getenv("PORT")
@@ -64,7 +53,6 @@ func main() {
 	mux.HandleFunc("/", ok(name+": ok"))
 	mux.HandleFunc("/health", ok("healthy"))
 	mux.HandleFunc("/ready", ok("ready"))
-	mux.HandleFunc("/debug/token", tokenDebugHandler(auth))
 	mux.HandleFunc("/payments", stkPushHandler(auth, store, callbacks, cfg))
 	mux.HandleFunc("/payments/callback", callbackHandler(callbacks))
 	mux.HandleFunc("/payments/query", queryHandler(auth, callbacks, cfg))

@@ -19,6 +19,14 @@ The architecture must support the following primary services:
 - Payments
 - Commission
 
+## Region justification
+
+eu-west-3 (Paris) is the region assigned to Group 8 by the DevOps Mentorship cohort for this
+capstone; it was not chosen by the group for cost, latency, or data-residency reasons. All
+`name_prefix`/tagging and IAM trust conditions in this repo assume this fixed region, and any
+account-specific values derived from it (for example, the ELB log-delivery account ID used for
+ALB access-log bucket permissions in `infra/modules/alb`) are pinned to eu-west-3 accordingly.
+
 ## Decision
 
 TillFlow will use the following request path:

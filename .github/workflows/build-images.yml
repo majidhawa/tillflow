@@ -1,0 +1,100 @@
+name: Build Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/**"
+      - ".github/workflows/build-images.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-images-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-3
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [web, pos, payments, commission]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for Dockerfile
+        id: dockerfile
+        run: |
+          if [ -f "services/${{ matrix.service }}/Dockerfile" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No Dockerfile for ${{ matrix.service }} yet — skipping build/push for this service."
+          fi
+
+      # Repository variable, not a secret: the ARN itself isn't sensitive,
+      # and OIDC trust conditions (repo + branch) gate who can assume it.
+      - name: Configure AWS credentials (OIDC)
+        if: steps.dockerfile.outputs.present == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: steps.dockerfile.outputs.present == 'true'
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image
+        if: steps.dockerfile.outputs.present == 'true'
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          REPOSITORY: devops-g8-${{ matrix.service }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t "$REGISTRY/$REPOSITORY:$IMAGE_TAG" "services/${{ matrix.service }}"
+
+      # Scan before push: a HIGH/CRITICAL finding fails this step and the
+      # job stops here, so the image is never pushed to ECR.
+      - name: Scan image (Trivy)
+        if: steps.dockerfile.outputs.present == 'true'
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: ${{ steps.ecr-login.outputs.registry }}/devops-g8-${{ matrix.service }}:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Generate SBOM (Syft)
+        if: steps.dockerfile.outputs.present == 'true'
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.ecr-login.outputs.registry }}/devops-g8-${{ matrix.service }}:${{ github.sha }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.service }}-${{ github.sha }}.spdx.json
+
+      - name: Upload SBOM artifact
+        if: steps.dockerfile.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.service }}-${{ github.sha }}
+          path: sbom-${{ matrix.service }}-${{ github.sha }}.spdx.json
+          retention-days: 90
+
+      # Immutable Git SHA tag only — never :latest.
+      - name: Push image to ECR
+        if: steps.dockerfile.outputs.present == 'true'
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          REPOSITORY: devops-g8-${{ matrix.service }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"

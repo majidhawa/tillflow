@@ -1,0 +1,222 @@
+name: PR CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # Works out which top-level areas changed so downstream jobs can skip
+  # work that isn't relevant to this PR (services/_shared/ is treated as
+  # affecting every service, since it's shared contracts/adapters/OTel setup).
+  detect-changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      infra: ${{ steps.filter.outputs.infra }}
+      services: ${{ steps.compute.outputs.services }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            infra:
+              - 'infra/**'
+            web:
+              - 'services/web/**'
+            pos:
+              - 'services/pos/**'
+            payments:
+              - 'services/payments/**'
+            commission:
+              - 'services/commission/**'
+            shared:
+              - 'services/_shared/**'
+
+      - name: Compute affected service matrix
+        id: compute
+        env:
+          WEB: ${{ steps.filter.outputs.web }}
+          POS: ${{ steps.filter.outputs.pos }}
+          PAYMENTS: ${{ steps.filter.outputs.payments }}
+          COMMISSION: ${{ steps.filter.outputs.commission }}
+          SHARED: ${{ steps.filter.outputs.shared }}
+        run: |
+          list=()
+          if [ "$SHARED" = "true" ] || [ "$WEB" = "true" ]; then list+=("web"); fi
+          if [ "$SHARED" = "true" ] || [ "$POS" = "true" ]; then list+=("pos"); fi
+          if [ "$SHARED" = "true" ] || [ "$PAYMENTS" = "true" ]; then list+=("payments"); fi
+          if [ "$SHARED" = "true" ] || [ "$COMMISSION" = "true" ]; then list+=("commission"); fi
+
+          if [ ${#list[@]} -eq 0 ]; then
+            json="[]"
+          else
+            json=$(printf '%s\n' "${list[@]}" | jq -R . | jq -sc .)
+          fi
+          echo "services=$json" >> "$GITHUB_OUTPUT"
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  terraform-checks:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+          terraform_wrapper: false
+
+      - name: terraform fmt (check only)
+        run: terraform fmt -recursive -check infra
+
+      - name: terraform validate — infra/bootstrap
+        working-directory: infra/bootstrap
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - name: terraform validate — infra/environments/dev
+        working-directory: infra/environments/dev
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+  iac-scan:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy IaC config scan
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: config
+          scan-ref: infra
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+  service-ci:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.services != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for package manifest
+        id: manifest
+        run: |
+          if [ -f "services/${{ matrix.service }}/package.json" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No package.json for ${{ matrix.service }} — skipping Node checks (service is likely still a stub)."
+          fi
+          if [ -f "services/${{ matrix.service }}/package-lock.json" ]; then
+            echo "lockfile=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "lockfile=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # npm caching is only enabled when a lockfile exists — setup-node
+      # would otherwise fail trying to hash a non-existent
+      # package-lock.json for services that only have a package.json.
+      - name: Setup Node with npm cache
+        if: steps.manifest.outputs.present == 'true' && steps.manifest.outputs.lockfile == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: services/${{ matrix.service }}/package-lock.json
+
+      - name: Setup Node without cache
+        if: steps.manifest.outputs.present == 'true' && steps.manifest.outputs.lockfile == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        if: steps.manifest.outputs.present == 'true'
+        working-directory: services/${{ matrix.service }}
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      # --if-present makes each of these a clean no-op when the script
+      # isn't defined — it never invents a script, and a script that IS
+      # defined and fails still fails the job.
+      - name: Lint (if defined)
+        if: steps.manifest.outputs.present == 'true'
+        working-directory: services/${{ matrix.service }}
+        run: npm run lint --if-present
+
+      - name: Typecheck (if defined)
+        if: steps.manifest.outputs.present == 'true'
+        working-directory: services/${{ matrix.service }}
+        run: npm run typecheck --if-present
+
+      - name: Test (if defined)
+        if: steps.manifest.outputs.present == 'true'
+        working-directory: services/${{ matrix.service }}
+        run: npm run test --if-present
+
+      - name: Dependency vulnerability scan (Trivy filesystem)
+        if: steps.manifest.outputs.present == 'true'
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: fs
+          scan-ref: services/${{ matrix.service }}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Check for Dockerfile
+        id: dockerfile
+        run: |
+          if [ -f "services/${{ matrix.service }}/Dockerfile" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No Dockerfile for ${{ matrix.service }} — skipping Docker build validation."
+          fi
+
+      - name: Docker build validation (no push)
+        if: steps.dockerfile.outputs.present == 'true'
+        run: docker build -t "pr-ci-${{ matrix.service }}:${{ github.sha }}" "services/${{ matrix.service }}"

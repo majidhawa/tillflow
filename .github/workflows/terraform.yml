@@ -1,0 +1,138 @@
+name: Terraform
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+
+permissions:
+  contents: read
+
+# One group for the whole workflow so a PR's plan and main's apply against
+# the same remote state can never run at the same time, and so two
+# pushes to main queue rather than racing each other's apply.
+concurrency:
+  group: terraform-infra-dev
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-3
+  TF_WORKING_DIR: infra/environments/dev
+  TF_VERSION: "1.11.4"
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      # TEMPORARY OIDC diagnostic — remove after troubleshooting is done.
+      # Requests the GitHub Actions OIDC token, decodes only its payload
+      # locally, and prints a handful of non-secret claims to help diagnose
+      # why AWS_TERRAFORM_PLAN_ROLE_ARN's trust policy is rejecting it.
+      # Never prints the raw JWT, request token, auth header, or full env.
+      - name: TEMPORARY OIDC diagnostic (remove after troubleshooting)
+        run: |
+          set -euo pipefail
+
+          oidc_response=$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")
+          oidc_token=$(echo "$oidc_response" | jq -r '.value')
+
+          payload="$(echo "$oidc_token" | cut -d '.' -f2)"
+          payload="${payload//-/+}"
+          payload="${payload//_/\/}"
+          case $(( ${#payload} % 4 )) in
+            2) payload="${payload}==" ;;
+            3) payload="${payload}=" ;;
+          esac
+
+          echo "$payload" | base64 -d 2>/dev/null | jq '
+            {sub, aud, repository, repository_id, repository_owner, repository_owner_id, event_name, ref}
+            + (if has("environment") then {environment} else {} end)
+          '
+
+          unset oidc_response oidc_token payload
+
+      # Repository variable, not a secret: the ARN itself isn't sensitive,
+      # and OIDC trust conditions (repo + pull_request) are what actually
+      # gate who can assume it. This is a separate, read-only role from
+      # AWS_TERRAFORM_ROLE_ARN below — a PR can never assume the
+      # apply-capable role. No long-lived AWS keys are used anywhere here.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: terraform fmt (check only)
+        run: terraform fmt -recursive -check infra
+
+      - name: terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init -input=false
+
+      - name: terraform validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform validate
+
+      - name: terraform plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform plan -input=false
+
+  apply:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # Requires a "production" (or "infrastructure") GitHub environment
+    # configured with required reviewers so apply waits for human
+    # approval. This workflow file cannot create that protection itself —
+    # see docs/cicd.md for what must be configured in repo settings.
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init -input=false
+
+      - name: terraform validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform validate
+
+      - name: terraform plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform plan -input=false -out=tfplan
+
+      - name: terraform apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -input=false tfplan

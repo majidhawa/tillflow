@@ -1,5 +1,4 @@
-// Minimal G1 golden-path stub: proves the ECS/ALB/API Gateway deployment
-// path works end to end. No business logic — just liveness/readiness.
+// Payments service — G1 golden-path stub, extended with Daraja OAuth.
 package main
 
 import (
@@ -16,6 +15,20 @@ func ok(body string) http.HandlerFunc {
 	}
 }
 
+// tokenDebugHandler is temporary — confirms OAuth works end to end.
+// Remove once STK Push is using getToken() directly.
+func tokenDebugHandler(auth *darajaAuth) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token, err := auth.getToken()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte("token acquired: " + token[:10] + "...\n"))
+	}
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -27,10 +40,13 @@ func main() {
 		name = "unknown"
 	}
 
+	auth := newDarajaAuth()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", ok(name+": ok"))
 	mux.HandleFunc("/health", ok("healthy"))
 	mux.HandleFunc("/ready", ok("ready"))
+	mux.HandleFunc("/debug/token", tokenDebugHandler(auth))
 
 	log.Printf("%s listening on :%s", name, port)
 	log.Fatal(http.ListenAndServe(":"+port, mux))

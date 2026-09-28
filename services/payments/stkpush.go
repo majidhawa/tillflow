@@ -77,7 +77,7 @@ func (s *paymentStore) put(idempotencyKey string, p *paymentResponse) {
 // stkPushHandler initiates an STK Push for a sale. Idempotent: a retry
 // with the same idempotency_key returns the existing payment rather
 // than triggering a second STK prompt.
-func stkPushHandler(auth *darajaAuth, store *paymentStore, cfg stkPushConfig) http.HandlerFunc {
+func stkPushHandler(auth *darajaAuth, store *paymentStore, callbacks *callbackStore, cfg stkPushConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -165,7 +165,7 @@ func stkPushHandler(auth *darajaAuth, store *paymentStore, cfg stkPushConfig) ht
 			state = "failed"
 		}
 
-		payment := &paymentResponse{
+			payment := &paymentResponse{
 			PaymentID:   fmt.Sprintf("pay_%s", darajaResp.CheckoutRequestID),
 			SaleID:      req.SaleID,
 			State:       state,
@@ -174,6 +174,7 @@ func stkPushHandler(auth *darajaAuth, store *paymentStore, cfg stkPushConfig) ht
 		}
 
 		store.put(req.IdempotencyKey, payment)
+		callbacks.registerPending(darajaResp.CheckoutRequestID, payment)
 		writeJSON(w, http.StatusOK, payment)
 	}
 }

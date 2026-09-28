@@ -1,4 +1,5 @@
-// Payments service — Daraja OAuth + STK Push.
+// Payments service — Daraja OAuth, STK Push, callback handling, and
+// transaction status query with idempotent reconciliation.
 package main
 
 import (
@@ -41,6 +42,7 @@ func main() {
 
 	auth := newDarajaAuth()
 	store := newPaymentStore()
+	callbacks := newCallbackStore()
 	cfg := stkPushConfig{
 		baseURL:     os.Getenv("DARAJA_BASE_URL"),
 		shortcode:   os.Getenv("DARAJA_SHORTCODE"),
@@ -53,7 +55,9 @@ func main() {
 	mux.HandleFunc("/health", ok("healthy"))
 	mux.HandleFunc("/ready", ok("ready"))
 	mux.HandleFunc("/debug/token", tokenDebugHandler(auth))
-	mux.HandleFunc("/payments", stkPushHandler(auth, store, cfg))
+	mux.HandleFunc("/payments", stkPushHandler(auth, store, callbacks, cfg))
+	mux.HandleFunc("/payments/callback", callbackHandler(callbacks))
+	mux.HandleFunc("/payments/query", queryHandler(auth, callbacks, cfg))
 
 	log.Printf("%s listening on :%s", name, port)
 	log.Fatal(http.ListenAndServe(":"+port, mux))

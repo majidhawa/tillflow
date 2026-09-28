@@ -12,7 +12,7 @@ resource "aws_elasticache_subnet_group" "this" {
 
 resource "aws_security_group" "redis" {
   name        = "${var.name_prefix}-redis-sg"
-  description = "Redis/Valkey: ingress only from the ECS tasks security group, no egress"
+  description = "Redis/Valkey: ingress only from the ECS tasks security group"
   vpc_id      = var.vpc_id
 
   # No egress rule: same reasoning as infra/modules/rds-postgres — Redis

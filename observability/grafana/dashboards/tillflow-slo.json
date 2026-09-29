@@ -1,0 +1,6466 @@
+{
+  "uid": "tillflow-slo",
+  "title": "TillFlow — SLOs & Operations (CloudWatch)",
+  "tags": [
+    "tillflow",
+    "slo",
+    "cloudwatch",
+    "capstone"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "alb",
+        "label": "ALB",
+        "type": "query",
+        "datasource": {
+          "type": "cloudwatch",
+          "uid": "tillflow-cloudwatch"
+        },
+        "query": {
+          "queryType": "dimensionValues",
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensionKey": "LoadBalancer",
+          "dimensionFilters": {},
+          "refId": "CloudWatchVariableQueryEditor-VariableQuery"
+        },
+        "regex": "/^app\\/devops-g8-alb\\/.+$/",
+        "refresh": 1,
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "hide": 0,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "tg_web",
+        "label": "TG web",
+        "type": "query",
+        "datasource": {
+          "type": "cloudwatch",
+          "uid": "tillflow-cloudwatch"
+        },
+        "query": {
+          "queryType": "dimensionValues",
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensionKey": "TargetGroup",
+          "dimensionFilters": {
+            "LoadBalancer": "$alb"
+          },
+          "refId": "CloudWatchVariableQueryEditor-VariableQuery"
+        },
+        "regex": "/^targetgroup\\/devops-g8-web-tg\\/.+$/",
+        "refresh": 1,
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "hide": 0,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "tg_pos",
+        "label": "TG pos",
+        "type": "query",
+        "datasource": {
+          "type": "cloudwatch",
+          "uid": "tillflow-cloudwatch"
+        },
+        "query": {
+          "queryType": "dimensionValues",
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensionKey": "TargetGroup",
+          "dimensionFilters": {
+            "LoadBalancer": "$alb"
+          },
+          "refId": "CloudWatchVariableQueryEditor-VariableQuery"
+        },
+        "regex": "/^targetgroup\\/devops-g8-pos-tg\\/.+$/",
+        "refresh": 1,
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "hide": 0,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "tg_payments",
+        "label": "TG payments",
+        "type": "query",
+        "datasource": {
+          "type": "cloudwatch",
+          "uid": "tillflow-cloudwatch"
+        },
+        "query": {
+          "queryType": "dimensionValues",
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensionKey": "TargetGroup",
+          "dimensionFilters": {
+            "LoadBalancer": "$alb"
+          },
+          "refId": "CloudWatchVariableQueryEditor-VariableQuery"
+        },
+        "regex": "/^targetgroup\\/devops-g8-payments-tg\\/.+$/",
+        "refresh": 1,
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "hide": 0,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "tg_commission",
+        "label": "TG commission",
+        "type": "query",
+        "datasource": {
+          "type": "cloudwatch",
+          "uid": "tillflow-cloudwatch"
+        },
+        "query": {
+          "queryType": "dimensionValues",
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensionKey": "TargetGroup",
+          "dimensionFilters": {
+            "LoadBalancer": "$alb"
+          },
+          "refId": "CloudWatchVariableQueryEditor-VariableQuery"
+        },
+        "regex": "/^targetgroup\\/devops-g8-commission-tg\\/.+$/",
+        "refresh": 1,
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "hide": 0,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "api_id",
+        "label": "API Gateway id",
+        "type": "textbox",
+        "query": "c2po857caj",
+        "current": {
+          "text": "c2po857caj",
+          "value": "c2po857caj"
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "text",
+      "title": "Read me first — what is real on this dashboard",
+      "id": 1,
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Datasource:** CloudWatch, eu-west-3 — existing AWS metrics and ECS logs only. No values on this dashboard are simulated or typed in.\n\n| Panel group | Backed by | Honest? |\n|---|---|---|\n| Web external availability | `CloudWatchSynthetics/SuccessPercent` (1 probe/min to the API Gateway root → Web) | ✅ real, time-based |\n| Web / POS request availability | ALB `RequestCount` + `HTTPCode_Target_5XX_Count` per target group | ✅ real, **proxy** (all requests, excludes ALB-generated 5xx) |\n| Web / POS p95 latency | ALB `TargetResponseTime` p95 per target group | ✅ real (window values are max-of-period p95) |\n| Payments row | ALB HTTP 5xx for payments | ⚠️ proxy only — the Payments SLI needs outcome/timing metrics that do not exist |\n| Commission | — | ❌ not measurable today (text panel explains why) |\n| Money path | Logs Insights over Payments/Commission log lines | ✅ real counts, **14-day log retention**, in-memory service state |\n\n**28d panels** only cover data since the services were deployed — the SLO window is not yet full. Empty stats read *no traffic in window* rather than a fake 100%.\n"
+      }
+    },
+    {
+      "type": "row",
+      "title": "SLO · Web — external synthetic availability (CloudWatch Synthetics)",
+      "collapsed": false,
+      "id": 2,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "panels": []
+    },
+    {
+      "type": "text",
+      "title": "SLI definition",
+      "id": 3,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 8
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Real telemetry.** `CloudWatchSynthetics/SuccessPercent` for canary `devops-g8-probe` — one GET of the public API Gateway root every minute. That path lands on the ALB default action, i.e. **Web**.\n\nSLI = successful runs / runs (time-based, 1 sample/min). It does **not** exercise POS, Payments or Commission."
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Availability 5m",
+      "id": 4,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "ok",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "SampleCount",
+          "period": "60",
+          "matchExact": true,
+          "id": "runs",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "runs*0 + (1 - (1 - SUM(ok) / (100 * SUM(runs))))",
+          "period": "60",
+          "label": "avail",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "5m",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Availability 1h",
+      "id": 5,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "ok",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "SampleCount",
+          "period": "60",
+          "matchExact": true,
+          "id": "runs",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "runs*0 + (1 - (1 - SUM(ok) / (100 * SUM(runs))))",
+          "period": "60",
+          "label": "avail",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Availability 28d",
+      "id": 6,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "ok",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "SampleCount",
+          "period": "3600",
+          "matchExact": true,
+          "id": "runs",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "runs*0 + (1 - (1 - SUM(ok) / (100 * SUM(runs))))",
+          "period": "3600",
+          "label": "avail",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "28d",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Error budget remaining (28d)",
+      "id": 7,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "1 - (bad/eligible) / (1 - target). <25% = release freeze; work resumes >50% after burn <1x for 24h.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "ok",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "SampleCount",
+          "period": "3600",
+          "matchExact": true,
+          "id": "runs",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "runs*0 + (1 - (1 - SUM(ok) / (100 * SUM(runs))) / 0.001)",
+          "period": "3600",
+          "label": "budget",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.25
+              },
+              {
+                "color": "green",
+                "value": 0.5
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "timeFrom": "28d",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "text",
+      "title": "SLO target",
+      "id": 8,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 8
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## 99.9%\n28-day rolling window"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 5m (fast)",
+      "id": 9,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "ok",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "SampleCount",
+          "period": "60",
+          "matchExact": true,
+          "id": "runs",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "runs*0 + ((1 - SUM(ok) / (100 * SUM(runs))) / 0.001)",
+          "period": "60",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 14.4
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "5m",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 1h (fast)",
+      "id": 10,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "ok",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "SampleCount",
+          "period": "60",
+          "matchExact": true,
+          "id": "runs",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "runs*0 + ((1 - SUM(ok) / (100 * SUM(runs))) / 0.001)",
+          "period": "60",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 14.4
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 30m (slow)",
+      "id": 11,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "ok",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "SampleCount",
+          "period": "60",
+          "matchExact": true,
+          "id": "runs",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "runs*0 + ((1 - SUM(ok) / (100 * SUM(runs))) / 0.001)",
+          "period": "60",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 6
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "30m",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 6h (slow)",
+      "id": 12,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "Sum",
+          "period": "300",
+          "matchExact": true,
+          "id": "ok",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "CloudWatchSynthetics",
+          "metricName": "SuccessPercent",
+          "dimensions": {
+            "CanaryName": "devops-g8-probe"
+          },
+          "statistic": "SampleCount",
+          "period": "300",
+          "matchExact": true,
+          "id": "runs",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "runs*0 + ((1 - SUM(ok) / (100 * SUM(runs))) / 0.001)",
+          "period": "300",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 6
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "6h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "text",
+      "title": "Burn policy",
+      "id": 13,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 12
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Fast: 5m **and** 1h ≥ 14.4×\n\nSlow: 30m **and** 6h ≥ 6×"
+      }
+    },
+    {
+      "type": "row",
+      "title": "SLO · Web — request availability at the ALB target group",
+      "collapsed": false,
+      "id": 14,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "panels": []
+    },
+    {
+      "type": "text",
+      "title": "SLI definition",
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 17
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Real telemetry, proxy SLI.** 1 − `HTTPCode_Target_5XX_Count` / `RequestCount` for target group `web`.\n\nCounts every request routed to the service (including k6 and probe traffic), not only the eligible events in the SLO doc. ALB-generated 5xx (e.g. no healthy targets) are load-balancer-level only and are **not** included — see the RED row and the external SLI."
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Availability 5m",
+      "id": 16,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 17
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + (1 - (SUM(FILL(err, 0)) / SUM(req)))",
+          "period": "60",
+          "label": "avail",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "5m",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Availability 1h",
+      "id": 17,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 17
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + (1 - (SUM(FILL(err, 0)) / SUM(req)))",
+          "period": "60",
+          "label": "avail",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Availability 28d",
+      "id": 18,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 17
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + (1 - (SUM(FILL(err, 0)) / SUM(req)))",
+          "period": "3600",
+          "label": "avail",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "28d",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Error budget remaining (28d)",
+      "id": 19,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "1 - (bad/eligible) / (1 - target). <25% = release freeze; work resumes >50% after burn <1x for 24h.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 17
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + (1 - (SUM(FILL(err, 0)) / SUM(req)) / 0.001)",
+          "period": "3600",
+          "label": "budget",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.25
+              },
+              {
+                "color": "green",
+                "value": 0.5
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "timeFrom": "28d",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "text",
+      "title": "SLO target",
+      "id": 20,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 17
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## 99.9%\n28-day rolling window"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 5m (fast)",
+      "id": 21,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + ((SUM(FILL(err, 0)) / SUM(req)) / 0.001)",
+          "period": "60",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 14.4
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "5m",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 1h (fast)",
+      "id": 22,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + ((SUM(FILL(err, 0)) / SUM(req)) / 0.001)",
+          "period": "60",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 14.4
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 30m (slow)",
+      "id": 23,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + ((SUM(FILL(err, 0)) / SUM(req)) / 0.001)",
+          "period": "60",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 6
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "30m",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 6h (slow)",
+      "id": 24,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "300",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "300",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + ((SUM(FILL(err, 0)) / SUM(req)) / 0.001)",
+          "period": "300",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 6
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "6h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "text",
+      "title": "Burn policy",
+      "id": 25,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 21
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Fast: 5m **and** 1h ≥ 14.4×\n\nSlow: 30m **and** 6h ≥ 6×"
+      }
+    },
+    {
+      "type": "row",
+      "title": "SLO · POS — request availability at the ALB target group",
+      "collapsed": false,
+      "id": 26,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "panels": []
+    },
+    {
+      "type": "text",
+      "title": "SLI definition",
+      "id": 27,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 26
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Real telemetry, proxy SLI.** 1 − `HTTPCode_Target_5XX_Count` / `RequestCount` for target group `pos`.\n\nCounts every request routed to the service (including k6 and probe traffic), not only the eligible events in the SLO doc. ALB-generated 5xx (e.g. no healthy targets) are load-balancer-level only and are **not** included — see the RED row and the external SLI."
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Availability 5m",
+      "id": 28,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 26
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + (1 - (SUM(FILL(err, 0)) / SUM(req)))",
+          "period": "60",
+          "label": "avail",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "5m",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Availability 1h",
+      "id": 29,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 26
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + (1 - (SUM(FILL(err, 0)) / SUM(req)))",
+          "period": "60",
+          "label": "avail",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Availability 28d",
+      "id": 30,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 26
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + (1 - (SUM(FILL(err, 0)) / SUM(req)))",
+          "period": "3600",
+          "label": "avail",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "28d",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Error budget remaining (28d)",
+      "id": 31,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "1 - (bad/eligible) / (1 - target). <25% = release freeze; work resumes >50% after burn <1x for 24h.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 26
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + (1 - (SUM(FILL(err, 0)) / SUM(req)) / 0.001)",
+          "period": "3600",
+          "label": "budget",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.25
+              },
+              {
+                "color": "green",
+                "value": 0.5
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "timeFrom": "28d",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "text",
+      "title": "SLO target",
+      "id": 32,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 26
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## 99.9%\n28-day rolling window"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 5m (fast)",
+      "id": 33,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 30
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + ((SUM(FILL(err, 0)) / SUM(req)) / 0.001)",
+          "period": "60",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 14.4
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "5m",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 1h (fast)",
+      "id": 34,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 30
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + ((SUM(FILL(err, 0)) / SUM(req)) / 0.001)",
+          "period": "60",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 14.4
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 30m (slow)",
+      "id": 35,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 30
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + ((SUM(FILL(err, 0)) / SUM(req)) / 0.001)",
+          "period": "60",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 6
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "30m",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 6h (slow)",
+      "id": 36,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 30
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "300",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "300",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + ((SUM(FILL(err, 0)) / SUM(req)) / 0.001)",
+          "period": "300",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 6
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "6h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "text",
+      "title": "Burn policy",
+      "id": 37,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 30
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Fast: 5m **and** 1h ≥ 14.4×\n\nSlow: 30m **and** 6h ≥ 6×"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Payments — HTTP acceptance proxy only (NOT the Payments SLI)",
+      "collapsed": false,
+      "id": 38,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "panels": []
+    },
+    {
+      "type": "text",
+      "title": "SLI definition",
+      "id": 39,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 35
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Proxy, not the SLI.** The Payments SLO is *commands accepted and callbacks processed within 60 s*. No metric records command/callback outcomes or their timing, so this row only shows ALB 5xx vs requests for the payments target group. Payments returns HTTP 200 even when Daraja rejects an STK push (state `failed`), so this row can be green while payments fail."
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Availability 5m",
+      "id": 40,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + (1 - (SUM(FILL(err, 0)) / SUM(req)))",
+          "period": "60",
+          "label": "avail",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.995
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "5m",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Availability 1h",
+      "id": 41,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + (1 - (SUM(FILL(err, 0)) / SUM(req)))",
+          "period": "60",
+          "label": "avail",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.995
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Availability 28d",
+      "id": 42,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + (1 - (SUM(FILL(err, 0)) / SUM(req)))",
+          "period": "3600",
+          "label": "avail",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.995
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "28d",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Error budget remaining (28d)",
+      "id": 43,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "1 - (bad/eligible) / (1 - target). <25% = release freeze; work resumes >50% after burn <1x for 24h.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + (1 - (SUM(FILL(err, 0)) / SUM(req)) / 0.005)",
+          "period": "3600",
+          "label": "budget",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.25
+              },
+              {
+                "color": "green",
+                "value": 0.5
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "timeFrom": "28d",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "text",
+      "title": "SLO target",
+      "id": 44,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 35
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## 99.5%\n28-day rolling window"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 5m (fast)",
+      "id": 45,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 39
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + ((SUM(FILL(err, 0)) / SUM(req)) / 0.005)",
+          "period": "60",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 14.4
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "5m",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 1h (fast)",
+      "id": 46,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 39
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + ((SUM(FILL(err, 0)) / SUM(req)) / 0.005)",
+          "period": "60",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 14.4
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 30m (slow)",
+      "id": 47,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 39
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + ((SUM(FILL(err, 0)) / SUM(req)) / 0.005)",
+          "period": "60",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 6
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "30m",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Burn rate 6h (slow)",
+      "id": 48,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Fast burn pages when 5m AND 1h are both >= 14.4x; slow burn when 30m AND 6h are both >= 6x.",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 39
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "300",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "300",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "sli",
+          "expression": "req*0 + ((SUM(FILL(err, 0)) / SUM(req)) / 0.005)",
+          "period": "300",
+          "label": "burn",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "x",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 6
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "timeFrom": "6h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "text",
+      "title": "Burn policy",
+      "id": 49,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 39
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Fast: 5m **and** 1h ≥ 14.4×\n\nSlow: 30m **and** 6h ≥ 6×"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Commission — on-time terminal state ≥ 99.0% · duplicate disbursement = 0",
+      "collapsed": false,
+      "id": 50,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "panels": []
+    },
+    {
+      "type": "text",
+      "title": "Commission SLI: cannot be calculated from current telemetry",
+      "id": 51,
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Not calculated — no telemetry exists for this SLI.** Required: per-payout records of *scheduled at / terminal at / terminal state* and a disbursement count per idempotency key.\n\nWhy not today (from the current source):\n- The daily close is only triggered manually — the EventBridge rule has **no target** (`infra/modules/eventbridge-schedule/main.tf`), so there is no scheduled run to be on time for.\n- The payout ledger is **in memory** (`services/commission/main.go`) and a successful close emits **no log line or metric**; only failures and tenant-mismatch skips are logged (see Money path row).\n- Payments' B2C idempotent replays return early **without logging**, so a prevented duplicate is invisible, and there is no metric that could show an actual duplicate disbursement.\n- Commission records `requested` whenever Payments returns HTTP 200, even if the payout state is `failed`.\n\nTo make this real: emit an OTel counter/histogram (via the existing ADOT sidecar → CloudWatch EMF) for `payout_terminal_total{state}`, `payout_terminal_latency_seconds`, `b2c_disbursements_total{idempotency_key}`, and persist the ledger.\n"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Latency SLOs — ALB TargetResponseTime p95",
+      "collapsed": false,
+      "id": 52,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 50
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Web p95 latency (5-min periods) vs 500 ms target",
+      "id": 53,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 51
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "TargetResponseTime",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "p95",
+          "period": "300",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "web p95",
+          "hide": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Web worst 5-min p95 (1h)",
+      "id": 54,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Max of 5-minute p95 values. A true windowed p95 would need raw request latencies.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 51
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "TargetResponseTime",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "p95",
+          "period": "300",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "max"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "Web worst hourly p95 (28d)",
+      "id": 55,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Max of hourly p95 values over 28 days — conservative, not a 28-day p95.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 55
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "TargetResponseTime",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "p95",
+          "period": "3600",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "max"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "28d",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "timeseries",
+      "title": "POS p95 latency (5-min periods) vs 400 ms target",
+      "id": 56,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 12,
+        "y": 51
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "TargetResponseTime",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "p95",
+          "period": "300",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "pos p95",
+          "hide": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.4
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "POS worst 5-min p95 (1h)",
+      "id": 57,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Max of 5-minute p95 values. A true windowed p95 would need raw request latencies.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 51
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "TargetResponseTime",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "p95",
+          "period": "300",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "max"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.4
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "stat",
+      "title": "POS worst hourly p95 (28d)",
+      "id": 58,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Max of hourly p95 values over 28 days — conservative, not a 28-day p95.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 55
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "TargetResponseTime",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "p95",
+          "period": "3600",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "",
+          "hide": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "max"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "no traffic in window",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.4
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "timeFrom": "28d",
+      "hideTimeOverride": false
+    },
+    {
+      "type": "row",
+      "title": "RED — rate, errors, duration (edge + per service)",
+      "collapsed": false,
+      "id": 59,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 59
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "API Gateway requests / 4xx / 5xx",
+      "id": 60,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 60
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApiGateway",
+          "metricName": "Count",
+          "dimensions": {
+            "ApiId": "$api_id"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "requests",
+          "hide": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApiGateway",
+          "metricName": "4xx",
+          "dimensions": {
+            "ApiId": "$api_id"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "4xx",
+          "hide": false
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApiGateway",
+          "metricName": "5xx",
+          "dimensions": {
+            "ApiId": "$api_id"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "5xx",
+          "hide": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "API Gateway error ratio (5xx / requests)",
+      "id": 61,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 60
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApiGateway",
+          "metricName": "Count",
+          "dimensions": {
+            "ApiId": "$api_id"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "req",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApiGateway",
+          "metricName": "5xx",
+          "dimensions": {
+            "ApiId": "$api_id"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "err",
+          "expression": "",
+          "label": "",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 1,
+          "region": "eu-west-3",
+          "id": "ratio",
+          "expression": "FILL(err, 0) / req",
+          "period": "60",
+          "label": "5xx ratio",
+          "hide": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "API Gateway latency p95 (total vs integration)",
+      "id": 62,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 60
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApiGateway",
+          "metricName": "Latency",
+          "dimensions": {
+            "ApiId": "$api_id"
+          },
+          "statistic": "p95",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "latency p95",
+          "hide": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApiGateway",
+          "metricName": "IntegrationLatency",
+          "dimensions": {
+            "ApiId": "$api_id"
+          },
+          "statistic": "p95",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "integration p95",
+          "hide": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "ALB requests per service",
+      "id": 63,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 68
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "web",
+          "hide": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "pos",
+          "hide": false
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "payments",
+          "hide": false
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_commission"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "commission",
+          "hide": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "ALB target 5xx per service + ALB-generated 5xx",
+      "id": 64,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 68
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "web target 5xx",
+          "hide": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "pos target 5xx",
+          "hide": false
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "payments target 5xx",
+          "hide": false
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_commission"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "commission target 5xx",
+          "hide": false
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_ELB_5XX_Count",
+          "dimensions": {
+            "LoadBalancer": "$alb"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "ALB-generated 5xx (all services)",
+          "hide": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "ALB target response time p95 per service",
+      "id": 65,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 68
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "TargetResponseTime",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "p95",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "web",
+          "hide": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "TargetResponseTime",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "p95",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "pos",
+          "hide": false
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "TargetResponseTime",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "p95",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "payments",
+          "hide": false
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "TargetResponseTime",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_commission"
+          },
+          "statistic": "p95",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "commission",
+          "hide": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "row",
+      "title": "Saturation — ECS (AWS/ECS + Container Insights)",
+      "collapsed": false,
+      "id": 66,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 76
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "ECS CPUUtilization (%)",
+      "id": 67,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 77
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ECS",
+          "metricName": "CPUUtilization",
+          "dimensions": {
+            "ClusterName": "devops-g8-tillflow",
+            "ServiceName": "devops-g8-web"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "web",
+          "hide": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ECS",
+          "metricName": "CPUUtilization",
+          "dimensions": {
+            "ClusterName": "devops-g8-tillflow",
+            "ServiceName": "devops-g8-pos"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "pos",
+          "hide": false
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ECS",
+          "metricName": "CPUUtilization",
+          "dimensions": {
+            "ClusterName": "devops-g8-tillflow",
+            "ServiceName": "devops-g8-payments"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "payments",
+          "hide": false
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ECS",
+          "metricName": "CPUUtilization",
+          "dimensions": {
+            "ClusterName": "devops-g8-tillflow",
+            "ServiceName": "devops-g8-commission"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "commission",
+          "hide": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 70
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "ECS MemoryUtilization (%)",
+      "id": 68,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 77
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ECS",
+          "metricName": "MemoryUtilization",
+          "dimensions": {
+            "ClusterName": "devops-g8-tillflow",
+            "ServiceName": "devops-g8-web"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "web",
+          "hide": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ECS",
+          "metricName": "MemoryUtilization",
+          "dimensions": {
+            "ClusterName": "devops-g8-tillflow",
+            "ServiceName": "devops-g8-pos"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "pos",
+          "hide": false
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ECS",
+          "metricName": "MemoryUtilization",
+          "dimensions": {
+            "ClusterName": "devops-g8-tillflow",
+            "ServiceName": "devops-g8-payments"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "payments",
+          "hide": false
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ECS",
+          "metricName": "MemoryUtilization",
+          "dimensions": {
+            "ClusterName": "devops-g8-tillflow",
+            "ServiceName": "devops-g8-commission"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "commission",
+          "hide": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 75
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Running tasks (Container Insights) + unhealthy ALB targets",
+      "id": 69,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 77
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "ECS/ContainerInsights",
+          "metricName": "RunningTaskCount",
+          "dimensions": {
+            "ClusterName": "devops-g8-tillflow",
+            "ServiceName": "devops-g8-web"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "web running",
+          "hide": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "ECS/ContainerInsights",
+          "metricName": "RunningTaskCount",
+          "dimensions": {
+            "ClusterName": "devops-g8-tillflow",
+            "ServiceName": "devops-g8-pos"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "pos running",
+          "hide": false
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "ECS/ContainerInsights",
+          "metricName": "RunningTaskCount",
+          "dimensions": {
+            "ClusterName": "devops-g8-tillflow",
+            "ServiceName": "devops-g8-payments"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "payments running",
+          "hide": false
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "ECS/ContainerInsights",
+          "metricName": "RunningTaskCount",
+          "dimensions": {
+            "ClusterName": "devops-g8-tillflow",
+            "ServiceName": "devops-g8-commission"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "commission running",
+          "hide": false
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "UnHealthyHostCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_web"
+          },
+          "statistic": "Maximum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "web unhealthy",
+          "hide": false
+        },
+        {
+          "refId": "F",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "UnHealthyHostCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_pos"
+          },
+          "statistic": "Maximum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "pos unhealthy",
+          "hide": false
+        },
+        {
+          "refId": "G",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "UnHealthyHostCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_payments"
+          },
+          "statistic": "Maximum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "payments unhealthy",
+          "hide": false
+        },
+        {
+          "refId": "H",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "eu-west-3",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "UnHealthyHostCount",
+          "dimensions": {
+            "LoadBalancer": "$alb",
+            "TargetGroup": "$tg_commission"
+          },
+          "statistic": "Maximum",
+          "period": "60",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "label": "commission unhealthy",
+          "hide": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "row",
+      "title": "Money path — from Payments / Commission log lines (CloudWatch Logs Insights)",
+      "collapsed": false,
+      "id": 70,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 85
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "STK push initiations by initial state",
+      "id": 71,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Logged by services/payments/stkpush.go when Daraja answers an STK push. Idempotent retries return early and are not logged.",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 86
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Logs",
+          "region": "eu-west-3",
+          "id": "",
+          "expression": "fields @timestamp, @message\n| filter @message like /stk_push: payment=/\n| parse @message \"state=* trace_id=\" as state\n| stats count(*) as initiations by state",
+          "logGroupNames": [
+            "/ecs/devops-g8-payments"
+          ],
+          "logGroups": [],
+          "statsGroups": [
+            "state"
+          ]
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "type": "table",
+      "title": "STK callback transitions by terminal state",
+      "id": 72,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Callback-driven transitions only. State changes applied by /payments/query reconciliation are not logged as transitions.",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 86
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Logs",
+          "region": "eu-west-3",
+          "id": "",
+          "expression": "fields @timestamp, @message\n| filter @message like /callback: payment .* transitioned to/\n| parse @message \"transitioned to * (\" as state\n| stats count(*) as callbacks by state",
+          "logGroupNames": [
+            "/ecs/devops-g8-payments"
+          ],
+          "logGroups": [],
+          "statsGroups": [
+            "state"
+          ]
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "type": "table",
+      "title": "Callbacks ignored (duplicate/reordered or unknown)",
+      "id": 73,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Evidence that idempotency held: duplicates were recognised and not re-applied.",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 86
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Logs",
+          "region": "eu-west-3",
+          "id": "",
+          "expression": "fields @timestamp, @message\n| filter @message like /callback: duplicate\\/reordered callback/ or @message like /callback: unknown CheckoutRequestID/\n| parse @message /callback: (?<kind>duplicate|unknown)/\n| stats count(*) as ignored by kind",
+          "logGroupNames": [
+            "/ecs/devops-g8-payments"
+          ],
+          "logGroups": [],
+          "statsGroups": [
+            "kind"
+          ]
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "type": "table",
+      "title": "Reconciliation queries by Daraja ResultCode",
+      "id": 74,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 86
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Logs",
+          "region": "eu-west-3",
+          "id": "",
+          "expression": "fields @timestamp, @message\n| filter @message like /query: raw daraja response/\n| parse @message /\"ResultCode\":\\s*\"(?<result_code>[^\"]*)\"/\n| stats count(*) as queries by result_code",
+          "logGroupNames": [
+            "/ecs/devops-g8-payments"
+          ],
+          "logGroups": [],
+          "statsGroups": [
+            "result_code"
+          ]
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "type": "table",
+      "title": "B2C payout requests by Daraja ResponseCode",
+      "id": 75,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Daraja acceptance of the payout request, not the final payout result.",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 94
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Logs",
+          "region": "eu-west-3",
+          "id": "",
+          "expression": "fields @timestamp, @message\n| filter @message like /b2c: raw daraja response/\n| parse @message /\"ResponseCode\":\\s*\"(?<response_code>[^\"]*)\"/\n| stats count(*) as b2c_requests by response_code",
+          "logGroupNames": [
+            "/ecs/devops-g8-payments"
+          ],
+          "logGroups": [],
+          "statsGroups": [
+            "response_code"
+          ]
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "type": "table",
+      "title": "B2C result callbacks",
+      "id": 76,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 94
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Logs",
+          "region": "eu-west-3",
+          "id": "",
+          "expression": "fields @timestamp, @message\n| filter @message like /b2c callback: payout .* transitioned to/ or @message like /b2c callback: duplicate/\n| parse @message /b2c callback: (?<kind>payout|duplicate)/\n| stats count(*) as callbacks by kind",
+          "logGroupNames": [
+            "/ecs/devops-g8-payments"
+          ],
+          "logGroups": [],
+          "statsGroups": [
+            "kind"
+          ]
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "type": "table",
+      "title": "Commission close: B2C failures and tenant-isolation skips",
+      "id": 77,
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "tillflow-cloudwatch"
+      },
+      "description": "Successful closes are not logged by Commission, so there is no on-time/terminal count here.",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 94
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "tillflow-cloudwatch"
+          },
+          "queryMode": "Logs",
+          "region": "eu-west-3",
+          "id": "",
+          "expression": "fields @timestamp, @message\n| filter @message like /commission: B2C request failed/ or @message like /commission: skipping sale/\n| parse @message /commission: (?<event>B2C request failed|skipping sale)/\n| stats count(*) as events by event",
+          "logGroupNames": [
+            "/ecs/devops-g8-commission"
+          ],
+          "logGroups": [],
+          "statsGroups": [
+            "event"
+          ]
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "type": "text",
+      "title": "Money-path limits",
+      "id": 78,
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 102
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Limits of the money-path view (from logs, not metrics):**\n- Counts come from log lines, not from a ledger. Log groups keep **14 days** (`infra/modules/ecs-cluster` `log_retention_days`), so these tables cannot cover a 28-day window.\n- Payments, POS and Commission keep state **in memory**; a task restart resets it, and the logs do not reveal what was lost.\n- **POS sale → paid is not visible anywhere:** POS never learns a payment's outcome (no notify/poll integration), so there is no \"sales paid\" metric or log to chart.\n- Payments emits OTel **traces only** (no metrics), so there is no business-metric time series (e.g. confirmed payments/min, KES collected). Adding OTel metrics exported via ADOT to CloudWatch would make these first-class, alertable SLIs.\n"
+      }
+    }
+  ]
+}

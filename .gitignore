@@ -47,6 +47,16 @@ tfplan
 # on every plan/apply, never hand-edited, no reason to commit.
 **/.build/*.zip
 
+# Self-hosted Grafana (observability/grafana): runtime data, local AWS
+# config and exported credentials must never be committed. .env is
+# already covered above; .env.example stays tracked.
+observability/grafana/data/
+observability/grafana/.aws/
+observability/grafana/**/*.db
+observability/grafana/**/*.db-journal
+observability/grafana/**/aws-credentials*
+observability/grafana/**/*.creds
+
 # Local tooling
 tmp/
 .cache/

@@ -1,0 +1,39 @@
+# Self-hosted Grafana for the TillFlow G3 SLO/operations dashboard.
+# Reads existing CloudWatch metrics/logs in eu-west-3; creates nothing in AWS.
+# See ./README.md for start-up and credentials.
+name: tillflow-grafana
+
+services:
+  grafana:
+    image: grafana/grafana-oss:11.1.0
+    container_name: tillflow-grafana
+    ports:
+      # Localhost only: this instance holds AWS read credentials.
+      - "127.0.0.1:3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in observability/grafana/.env (see .env.example)}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/tillflow-slo.json
+      # CloudWatch datasource uses the AWS SDK default credential chain only.
+      GF_AWS_ALLOWED_AUTH_PROVIDERS: default
+      GF_AWS_ASSUME_ROLE_ENABLED: "false"
+      AWS_REGION: eu-west-3
+      # Pass-through only: values come from the shell that runs
+      # `docker compose up` and are never written to a file in this repo.
+      AWS_ACCESS_KEY_ID:
+      AWS_SECRET_ACCESS_KEY:
+      AWS_SESSION_TOKEN:
+    volumes:
+      - ./provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards:/etc/grafana/dashboards:ro
+      # Grafana's SQLite DB, sessions and plugins live in a Docker volume,
+      # outside the repo.
+      - grafana-data:/var/lib/grafana
+    restart: unless-stopped
+
+volumes:
+  grafana-data:

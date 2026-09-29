@@ -114,5 +114,5 @@ Details: [docs/cicd.md → Runtime verification status](../../docs/cicd.md#runti
 | G1 | Hawa | Implemented. Partially proven (no Actions apply, no deploy stage). |
 | G2 | Glory / Consolate / Hawa (infra wiring) | Live money path proven, with two documented integration limitations. |
 | G3 | Hawa | Proven for the telemetry that exists. Limitations listed above. |
-| G4 | Hawa (Reliability + Operations DRI, per `docs/ownership.md`). Glory executing and assisting with drills in coordination with Hawa. | **Not complete. Not claimed here.** Payments drills are in [g4-recovery-drills.md](../payments/g4-recovery-drills.md). The platform-failure, broken-release and restore drills are not recorded in this repo. |
+| G4 | Hawa (Reliability + Operations DRI, per `docs/ownership.md`). Glory executing and assisting with drills in coordination with Hawa. | **Not claimed complete here.** Payments drills: [g4-recovery-drills.md](../payments/g4-recovery-drills.md). Broken-release rollback, ECS task-loss and RDS PITR restore (infrastructure only) drills were executed on 2026-09-29: [g4-platform-recovery-drills.md](g4-platform-recovery-drills.md). Gate sign-off is outside this file. |
 | G5 | Team. Consolate executing and coordinating final validation. | **Not complete. Not claimed here.** |

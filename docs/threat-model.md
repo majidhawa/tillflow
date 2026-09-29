@@ -141,7 +141,7 @@ Severity reflects likelihood × impact **for a production launch** of the code a
 |---|---|
 | Threat | **I/T.** One service reads or writes another's data in the shared Postgres instance. The database is reachable from outside. |
 | Implemented controls | RDS has `storage_encrypted = true` and `publicly_accessible = false`, sits in private subnets, and only accepts ingress from the ECS task SG (`infra/modules/rds-postgres`). Backups follow `backup_retention_period`. |
-| Gaps | **No service uses RDS yet** (all state is in memory), so ADR-002's per-service schemas (`pos`, `payments`, `commission`) and least-privilege DB roles **don't exist**. Every service would connect with the master credential through the shared task role. Single-AZ (`multi_az = false`). No restore has been rehearsed (G4). |
+| Gaps | **No service uses RDS yet** (all state is in memory), so ADR-002's per-service schemas (`pos`, `payments`, `commission`) and least-privilege DB roles **don't exist**. Every service would connect with the master credential through the shared task role. Single-AZ (`multi_az = false`). A PITR restore into a separate instance was rehearsed in G4 (`evidence/platform/g4-platform-recovery-drills.md`), but it proves infrastructure restorability only, since there is no application data in RDS. |
 
 ### T10. SQS / DLQ (TB4) — **Low**
 

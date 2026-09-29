@@ -1,6 +1,6 @@
 # TillFlow SLOs and Error Budgets
 
-- Status: Draft — targets may still change before final benchmarking (with a written rationale, per the capstone brief's rule), and none of this has live proof yet: no service has been deployed (see `evidence/platform/g1-cicd/README.md`).
+- Status: Draft — targets may still change before final benchmarking (with a written rationale, per the capstone brief's rule). All four services are now deployed on ECS in `eu-west-3`; the Grafana SLO dashboard has been run against live data (`evidence/reliability/g3-grafana-slo-runtime.md`), but the Payments and Commission SLIs as defined, and a full 28-day window, do not yet have runtime proof (see "What's still needed" at the end).
 - DRI: Hawaah (Reliability + Operations)
 - Window: 28 days, rolling, for every SLO in this document
 - Budget formula: `budget = eligible events × (1 − target)`. Invalid requests and genuine business declines may be excluded from the denominator; dependency outages still count against the budget when they cause the user-facing journey to fail.
@@ -53,7 +53,7 @@
 
 ## Budget policy — fast/slow burn alerting
 
-Not yet implemented (no live metrics exist yet — this is the policy to implement once the ADOT/Grafana pipeline is live). Draft policy, using the standard multi-window, multi-burn-rate approach (Google SRE workbook pattern), adapted to this project's 28-day budget windows:
+Burn-rate **alerting** is not yet implemented: the deployed CloudWatch alarms (`infra/modules/observability`) are static-threshold alarms, not multi-window burn-rate alarms. Burn rates for the SLIs that existing CloudWatch metrics can support are *displayed* on the self-hosted Grafana dashboard (`observability/grafana/`). Draft policy, using the standard multi-window, multi-burn-rate approach (Google SRE workbook pattern), adapted to this project's 28-day budget windows:
 
 | Burn rate | Windows | Trigger | Response |
 |---|---|---|---|
@@ -66,12 +66,19 @@ Not yet implemented (no live metrics exist yet — this is the policy to impleme
 
 ## What's still needed before this has runtime proof
 
-This document defines the targets; none of the following exists yet:
+This document defines the targets. Current state:
 
-- ADOT Collector sidecar emitting the metrics these SLIs are computed from (infra is wired for the sidecar — `infra/modules/ecs-service` — but no service has been deployed)
-- Grafana dashboards showing 5m/1h/28d uptime, budget remaining, and burn rate per service
-- The Slack alert integration for firing/recovery notifications
-- A one-minute external synthetic probe (Terraform module not yet built)
-- k6 load tests validating the latency targets above under load
+**Now in place**
 
-Tracked as the immediate next Reliability + Operations work once a stub service is deployable (see `evidence/platform/g1-cicd/README.md` for what's blocking that).
+- ADOT Collector sidecar runs beside every backend service (`infra/modules/ecs-service`). Payments exports OTel **traces** through it; no service emits OTel **metrics** yet.
+- CloudWatch alarms and an operations dashboard for ALB, ECS, API Gateway and Synthetics (`infra/modules/observability`), with firing/recovery notifications to Slack via SNS (`infra/modules/slack-alerts`).
+- A one-minute external synthetic probe, CloudWatch Synthetics canary `devops-g8-probe` (`infra/modules/synthetic-probe`), which GETs the API Gateway root (→ Web).
+- k6 stepped-baseline, spike and soak profiles (`scripts/k6/`) with results in `evidence/reliability/capacity-envelope.md`.
+- A self-hosted Grafana dashboard definition on CloudWatch (`observability/grafana/`) showing 5m/1h/28d availability, budget remaining and burn rate for the SLIs existing metrics can support: Web (external probe and ALB), POS (ALB proxy), and Payments (HTTP proxy only). Run against the live account on 2026-09-29 with no query errors observed; see `evidence/reliability/g3-grafana-slo-runtime.md`. Its 28d panels are a 28-day query window over the data available since deployment, not 28 days of collected history.
+
+**Still needed**
+
+- Application metrics for the SLIs as defined. The Payments SLI (accepted/processed within 60 s), the Commission on-time terminal state SLI and the duplicate-disbursement invariant cannot be calculated from current telemetry; the Web/POS ALB figures are proxies (all requests, not eligible events). See `observability/grafana/README.md` for the per-panel gaps.
+- Multi-window burn-rate alarms (fast/slow policy above) wired to Slack.
+- A scheduled trigger for the Commission daily close (the EventBridge rule has no target).
+- A full 28-day window of data (services have existed for less than 28 days), and a decision on whether synthetic-probe runs from before the services launched count as eligible events for the Web budget (they currently drive the Web external budget negative; see the G3 evidence).

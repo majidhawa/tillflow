@@ -1,0 +1,14 @@
+# Loads the repo-managed dashboard JSON. Edit the generator
+# (tools/build_dashboard.py), not the UI — UI changes are not saved.
+apiVersion: 1
+
+providers:
+  - name: tillflow
+    folder: TillFlow
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

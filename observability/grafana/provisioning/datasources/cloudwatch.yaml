@@ -1,0 +1,15 @@
+# CloudWatch datasource for the TillFlow dashboard. No keys here:
+# authType "default" uses the AWS SDK default credential chain inside the
+# container (the AWS_* env vars passed through by docker-compose.yml).
+apiVersion: 1
+
+datasources:
+  - name: CloudWatch (eu-west-3)
+    uid: tillflow-cloudwatch
+    type: cloudwatch
+    access: proxy
+    isDefault: true
+    editable: false
+    jsonData:
+      authType: default
+      defaultRegion: eu-west-3

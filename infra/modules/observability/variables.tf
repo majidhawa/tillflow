@@ -8,6 +8,11 @@ variable "region" {
   type        = string
 }
 
+variable "environment_name" {
+  description = "Environment label included in each alarm's Slack-alert contract fields (infra/modules/slack-alerts's Lambda CONTRACT_FIELDS), matching the environment_name already passed to that module."
+  type        = string
+}
+
 variable "alarm_sns_topic_arn" {
   description = "SNS topic ARN for alarm_actions/ok_actions (infra/modules/slack-alerts alerts_topic_arn)."
   type        = string

@@ -276,6 +276,7 @@ module "observability" {
 
   name_prefix            = var.name_prefix
   region                 = var.region
+  environment_name       = var.environment_name
   alarm_sns_topic_arn    = module.slack_alerts.alerts_topic_arn
   alb_arn_suffix         = module.alb.alb_arn_suffix
   ecs_cluster_name       = module.ecs_cluster.cluster_name

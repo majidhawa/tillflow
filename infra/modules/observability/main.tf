@@ -10,6 +10,16 @@
 
 locals {
   alarm_actions = [var.alarm_sns_topic_arn]
+
+  # Shared Slack-alert contract fields (infra/modules/slack-alerts's Lambda
+  # CONTRACT_FIELDS) that are identical across every alarm in this module.
+  # contract_dashboard_url intentionally points at the real CloudWatch
+  # dashboard this module creates below, not a Grafana URL — no Grafana
+  # exists yet (see docs/slo-error-budgets.md's "what's still needed"
+  # section). The Lambda's field name stays "grafana_panel" since that's
+  # its actual, already-deployed contract field name.
+  contract_owner         = "Hawaah (Reliability + Operations)"
+  contract_dashboard_url = "https://console.aws.amazon.com/cloudwatch/home?region=${var.region}#dashboards:name=${var.name_prefix}-tillflow-operations"
 }
 
 # --- ALB / target group health, per service ---
@@ -21,8 +31,18 @@ locals {
 resource "aws_cloudwatch_metric_alarm" "alb_unhealthy_hosts" {
   for_each = var.services
 
-  alarm_name          = "${var.name_prefix}-${each.key}-alb-unhealthy-hosts"
-  alarm_description   = "One or more unhealthy targets behind the ${each.key} target group."
+  alarm_name = "${var.name_prefix}-${each.key}-alb-unhealthy-hosts"
+  alarm_description = jsonencode({
+    environment       = var.environment_name
+    service           = each.key
+    symptom           = "Unhealthy ECS targets behind the ALB"
+    user_impact       = "Requests routed to ${each.key} may fail or time out until targets recover"
+    observed_value    = "UnHealthyHostCount >= 1 (target group: ${each.key})"
+    grafana_panel     = local.contract_dashboard_url
+    runbook_link      = "docs/runbook.md#unhealthy-ecs-servicetasks"
+    owner             = local.contract_owner
+    first_safe_action = "Check aws ecs describe-services --cluster ${var.ecs_cluster_name} --services ${each.value.ecs_service_name} and tail container logs before taking any action"
+  })
   namespace           = "AWS/ApplicationELB"
   metric_name         = "UnHealthyHostCount"
   statistic           = "Maximum"
@@ -45,8 +65,18 @@ resource "aws_cloudwatch_metric_alarm" "alb_unhealthy_hosts" {
 resource "aws_cloudwatch_metric_alarm" "alb_target_response_time" {
   for_each = var.services
 
-  alarm_name          = "${var.name_prefix}-${each.key}-alb-latency-p90"
-  alarm_description   = "${each.key} p90 target response time above ${var.alb_latency_threshold_seconds}s."
+  alarm_name = "${var.name_prefix}-${each.key}-alb-latency-p90"
+  alarm_description = jsonencode({
+    environment       = var.environment_name
+    service           = each.key
+    symptom           = "Elevated ALB target latency"
+    user_impact       = "${each.key} requests are slower than the documented SLO target"
+    observed_value    = "TargetResponseTime p90 > ${var.alb_latency_threshold_seconds}s (target group: ${each.key})"
+    grafana_panel     = local.contract_dashboard_url
+    runbook_link      = "docs/runbook.md#elevated-latency"
+    owner             = local.contract_owner
+    first_safe_action = "Check the ECS CPU/memory alarms for ${each.key} and confirm whether this is expected load (e.g. a k6 test) before scaling"
+  })
   namespace           = "AWS/ApplicationELB"
   metric_name         = "TargetResponseTime"
   extended_statistic  = "p90"
@@ -69,8 +99,18 @@ resource "aws_cloudwatch_metric_alarm" "alb_target_response_time" {
 resource "aws_cloudwatch_metric_alarm" "alb_target_5xx" {
   for_each = var.services
 
-  alarm_name          = "${var.name_prefix}-${each.key}-alb-target-5xx"
-  alarm_description   = "${each.key} target group returned ${var.alb_5xx_threshold}+ 5xx responses in 5 minutes."
+  alarm_name = "${var.name_prefix}-${each.key}-alb-target-5xx"
+  alarm_description = jsonencode({
+    environment       = var.environment_name
+    service           = each.key
+    symptom           = "Elevated 5xx responses from ${each.key}"
+    user_impact       = "A portion of ${each.key} requests are failing"
+    observed_value    = "HTTPCode_Target_5XX_Count >= ${var.alb_5xx_threshold} in 5 minutes (target group: ${each.key})"
+    grafana_panel     = local.contract_dashboard_url
+    runbook_link      = "docs/runbook.md#elevated-5xx"
+    owner             = local.contract_owner
+    first_safe_action = "Tail aws logs tail /ecs/${var.name_prefix}-${each.key} --since 15m --filter-pattern ERROR before taking any action"
+  })
   namespace           = "AWS/ApplicationELB"
   metric_name         = "HTTPCode_Target_5XX_Count"
   statistic           = "Sum"
@@ -101,8 +141,18 @@ resource "aws_cloudwatch_metric_alarm" "alb_target_5xx" {
 resource "aws_cloudwatch_metric_alarm" "ecs_cpu_high" {
   for_each = var.services
 
-  alarm_name          = "${var.name_prefix}-${each.key}-ecs-cpu-high"
-  alarm_description   = "${each.key} ECS service CPUUtilization above ${var.ecs_cpu_threshold_percent}%."
+  alarm_name = "${var.name_prefix}-${each.key}-ecs-cpu-high"
+  alarm_description = jsonencode({
+    environment       = var.environment_name
+    service           = each.key
+    symptom           = "High ECS CPU utilization"
+    user_impact       = "${each.key} may become slow or start failing health checks if this continues"
+    observed_value    = "CPUUtilization > ${var.ecs_cpu_threshold_percent}% (service: ${each.value.ecs_service_name})"
+    grafana_panel     = local.contract_dashboard_url
+    runbook_link      = "docs/runbook.md#high-ecs-cpumemory"
+    owner             = local.contract_owner
+    first_safe_action = "Confirm whether this is expected load (e.g. a k6 test) before considering a scale-up"
+  })
   namespace           = "AWS/ECS"
   metric_name         = "CPUUtilization"
   statistic           = "Average"
@@ -125,8 +175,18 @@ resource "aws_cloudwatch_metric_alarm" "ecs_cpu_high" {
 resource "aws_cloudwatch_metric_alarm" "ecs_memory_high" {
   for_each = var.services
 
-  alarm_name          = "${var.name_prefix}-${each.key}-ecs-memory-high"
-  alarm_description   = "${each.key} ECS service MemoryUtilization above ${var.ecs_memory_threshold_percent}%."
+  alarm_name = "${var.name_prefix}-${each.key}-ecs-memory-high"
+  alarm_description = jsonencode({
+    environment       = var.environment_name
+    service           = each.key
+    symptom           = "High ECS memory utilization"
+    user_impact       = "${each.key} risks OOM-related task restarts if this continues"
+    observed_value    = "MemoryUtilization > ${var.ecs_memory_threshold_percent}% (service: ${each.value.ecs_service_name})"
+    grafana_panel     = local.contract_dashboard_url
+    runbook_link      = "docs/runbook.md#high-ecs-cpumemory"
+    owner             = local.contract_owner
+    first_safe_action = "Confirm whether this is expected load (e.g. a k6 test) before considering a scale-up"
+  })
   namespace           = "AWS/ECS"
   metric_name         = "MemoryUtilization"
   statistic           = "Average"
@@ -152,8 +212,18 @@ resource "aws_cloudwatch_metric_alarm" "ecs_memory_high" {
 # dimensions ApiId + Stage.
 
 resource "aws_cloudwatch_metric_alarm" "apigw_5xx" {
-  alarm_name          = "${var.name_prefix}-apigw-5xx"
-  alarm_description   = "API Gateway returned ${var.apigw_5xx_threshold}+ 5xx responses in 5 minutes."
+  alarm_name = "${var.name_prefix}-apigw-5xx"
+  alarm_description = jsonencode({
+    environment       = var.environment_name
+    service           = "api-gateway"
+    symptom           = "Elevated API Gateway 5xx responses"
+    user_impact       = "External requests across the golden path may be failing"
+    observed_value    = "API Gateway 5xx >= ${var.apigw_5xx_threshold} in 5 minutes"
+    grafana_panel     = local.contract_dashboard_url
+    runbook_link      = "docs/runbook.md#elevated-5xx"
+    owner             = local.contract_owner
+    first_safe_action = "Check the per-service ALB 5xx and unhealthy-host alarms to find which backend is failing"
+  })
   namespace           = "AWS/ApiGateway"
   metric_name         = "5xx"
   statistic           = "Sum"
@@ -174,8 +244,18 @@ resource "aws_cloudwatch_metric_alarm" "apigw_5xx" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "apigw_latency" {
-  alarm_name          = "${var.name_prefix}-apigw-latency"
-  alarm_description   = "API Gateway average latency above ${var.apigw_latency_threshold_ms}ms."
+  alarm_name = "${var.name_prefix}-apigw-latency"
+  alarm_description = jsonencode({
+    environment       = var.environment_name
+    service           = "api-gateway"
+    symptom           = "Elevated API Gateway latency"
+    user_impact       = "External requests across the golden path are slower than expected"
+    observed_value    = "API Gateway average Latency > ${var.apigw_latency_threshold_ms}ms"
+    grafana_panel     = local.contract_dashboard_url
+    runbook_link      = "docs/runbook.md#elevated-latency"
+    owner             = local.contract_owner
+    first_safe_action = "Check the per-service ALB latency and ECS CPU/memory alarms to find which backend is slow"
+  })
   namespace           = "AWS/ApiGateway"
   metric_name         = "Latency"
   statistic           = "Average"
@@ -200,8 +280,18 @@ resource "aws_cloudwatch_metric_alarm" "apigw_latency" {
 # reference: "SuccessPercent" and "Failed", dimension CanaryName.
 
 resource "aws_cloudwatch_metric_alarm" "synthetics_success_percent" {
-  alarm_name          = "${var.name_prefix}-synthetic-probe-success-low"
-  alarm_description   = "External heartbeat canary success rate below ${var.synthetics_success_percent_threshold}% over 5 minutes."
+  alarm_name = "${var.name_prefix}-synthetic-probe-success-low"
+  alarm_description = jsonencode({
+    environment       = var.environment_name
+    service           = "synthetic-probe"
+    symptom           = "External heartbeat canary success rate low"
+    user_impact       = "The full external path (API Gateway -> ALB -> ECS) may be down or unreachable for real users"
+    observed_value    = "SuccessPercent < ${var.synthetics_success_percent_threshold}% over 5 minutes"
+    grafana_panel     = local.contract_dashboard_url
+    runbook_link      = "docs/runbook.md#synthetic-probe-failure"
+    owner             = local.contract_owner
+    first_safe_action = "Check the ALB/API Gateway 5xx and unhealthy-host alarms first -- this is usually a downstream symptom"
+  })
   namespace           = "CloudWatchSynthetics"
   metric_name         = "SuccessPercent"
   statistic           = "Average"
@@ -224,8 +314,18 @@ resource "aws_cloudwatch_metric_alarm" "synthetics_success_percent" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "synthetics_failed" {
-  alarm_name          = "${var.name_prefix}-synthetic-probe-failed-runs"
-  alarm_description   = "External heartbeat canary had a failed run in the last 5 minutes."
+  alarm_name = "${var.name_prefix}-synthetic-probe-failed-runs"
+  alarm_description = jsonencode({
+    environment       = var.environment_name
+    service           = "synthetic-probe"
+    symptom           = "External heartbeat canary run failed"
+    user_impact       = "The full external path (API Gateway -> ALB -> ECS) may be down or unreachable for real users"
+    observed_value    = "Failed >= 1 in 5 minutes"
+    grafana_panel     = local.contract_dashboard_url
+    runbook_link      = "docs/runbook.md#synthetic-probe-failure"
+    owner             = local.contract_owner
+    first_safe_action = "Check the ALB/API Gateway 5xx and unhealthy-host alarms first -- this is usually a downstream symptom"
+  })
   namespace           = "CloudWatchSynthetics"
   metric_name         = "Failed"
   statistic           = "Sum"

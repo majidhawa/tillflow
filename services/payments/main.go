@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -16,8 +17,6 @@ func ok(body string) http.HandlerFunc {
 	}
 }
 
-
-
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -28,6 +27,12 @@ func main() {
 	if name == "" {
 		name = "unknown"
 	}
+
+	shutdown, err := setupTracing(name)
+	if err != nil {
+		log.Fatalf("failed to set up tracing: %v", err)
+	}
+	defer shutdown(context.Background())
 
 	auth := newDarajaAuth()
 	store := newPaymentStore()

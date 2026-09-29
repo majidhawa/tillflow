@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 )
@@ -38,7 +39,7 @@ type darajaSTKPushRequest struct {
 	TransactionType   string `json:"TransactionType"`
 	Amount            int64  `json:"Amount"`
 	PartyA            string `json:"PartyA"`
-	PartyB             string `json:"PartyB"`
+	PartyB            string `json:"PartyB"`
 	PhoneNumber       string `json:"PhoneNumber"`
 	CallBackURL       string `json:"CallBackURL"`
 	AccountReference  string `json:"AccountReference"`
@@ -79,6 +80,10 @@ func (s *paymentStore) put(idempotencyKey string, p *paymentResponse) {
 // than triggering a second STK prompt.
 func stkPushHandler(auth *darajaAuth, store *paymentStore, callbacks *callbackStore, cfg stkPushConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracer.Start(r.Context(), "stk_push")
+		defer span.End()
+		traceID, spanID := spanAttrs(ctx)
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -165,7 +170,7 @@ func stkPushHandler(auth *darajaAuth, store *paymentStore, callbacks *callbackSt
 			state = "failed"
 		}
 
-			payment := &paymentResponse{
+		payment := &paymentResponse{
 			PaymentID:   fmt.Sprintf("pay_%s", darajaResp.CheckoutRequestID),
 			SaleID:      req.SaleID,
 			State:       state,
@@ -175,6 +180,8 @@ func stkPushHandler(auth *darajaAuth, store *paymentStore, callbacks *callbackSt
 
 		store.put(req.IdempotencyKey, payment)
 		callbacks.registerPending(darajaResp.CheckoutRequestID, payment)
+		log.Printf("stk_push: payment=%s sale_id=%s state=%s trace_id=%s span_id=%s",
+			payment.PaymentID, payment.SaleID, payment.State, traceID, spanID)
 		writeJSON(w, http.StatusOK, payment)
 	}
 }
@@ -192,4 +199,4 @@ type stkPushConfig struct {
 	shortcode   string
 	passkey     string
 	callbackURL string
-}
+}	

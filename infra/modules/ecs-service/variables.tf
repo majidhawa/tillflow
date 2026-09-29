@@ -132,3 +132,20 @@ variable "tags" {
     capstone    = "tillflow"
   }
 }
+
+# --- Application secrets (injected by the ECS agent at task start) ---
+
+variable "secrets" {
+  description = "Optional ECS container secrets for the app container only: env var name -> Secrets Manager/SSM reference (valueFrom), e.g. \"<secret_arn>:<json_key>::\". Only ARNs are passed; values are resolved by ECS at task start and never enter Terraform state. The execution role must be allowed to read each referenced secret."
+  type = list(object({
+    name       = string
+    value_from = string
+  }))
+  default = []
+}
+
+variable "environment" {
+  description = "Optional extra non-secret environment variables for the app container only, appended after the built-in ones. Never put credentials here — plain env values are stored in the task definition and Terraform state; use var.secrets instead."
+  type        = map(string)
+  default     = {}
+}

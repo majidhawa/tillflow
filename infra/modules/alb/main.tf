@@ -285,9 +285,21 @@ resource "aws_lb_listener_rule" "backend_path" {
     target_group_arn = aws_lb_target_group.this[each.key].arn
   }
 
+  # POS serves its resources at the root (/tenants, /tills, ...) rather than
+  # under /pos, so it needs extra prefixes. ALB allows at most 5 condition
+  # values per rule, hence one trailing-wildcard pattern per prefix.
   condition {
     path_pattern {
-      values = ["/${each.key}", "/${each.key}/*"]
+      values = each.key == "pos" ? [
+        "/pos*",
+        "/tenants*",
+        "/tills*",
+        "/attendants*",
+        "/sales*"
+        ] : [
+        "/${each.key}",
+        "/${each.key}/*"
+      ]
     }
   }
 

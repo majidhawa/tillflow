@@ -32,3 +32,8 @@ output "log_group_names" {
   description = "Map of service name to CloudWatch log group name."
   value       = { for name, lg in aws_cloudwatch_log_group.app : name => lg.name }
 }
+
+output "execution_role_name" {
+  description = "Name of the shared ECS task execution role, for attaching additional scoped IAM policies (e.g. container secret retrieval) from other modules."
+  value       = aws_iam_role.execution.name
+}

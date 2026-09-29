@@ -1,10 +1,31 @@
 # TillFlow Operational Runbook
 
-- Status: Draft — no service is deployed yet (`enable_services = false`), so nothing below has been exercised against live traffic. Written now so it exists before the incident demo, per `docs/ownership.md`'s Reliability + Operations scope.
+- Status: Active for G3 alerting. All four services (`web`, `pos`, `payments`, `commission`) are deployed on ECS in `eu-west-3` (one running task each), behind the internal ALB and the public API Gateway. The alarm → SNS → Lambda → Slack path has been exercised end to end, both firing and recovery (see [Rehearsal status](#rehearsal-status)). Most of the diagnose/resolve procedures below have **not** yet been rehearsed. The G4 recovery drills are still open.
+- Last reviewed: 2026-09-29 against `main` @ `f022126`
 - DRI: Hawaah (Reliability + Operations)
 - Alerting: all alarms below publish to the `devops-g8-alerts` SNS topic (`infra/modules/slack-alerts`), which forwards to Slack via the existing Lambda subscriber.
 - Dashboard: `devops-g8-tillflow-operations` (CloudWatch console -> Dashboards), created by `infra/modules/observability`.
 - Alarm naming convention: `devops-g8-<service>-<signal>` for per-service alarms, `devops-g8-apigw-<signal>` and `devops-g8-synthetic-probe-<signal>` for the shared ones. The full list of 24 alarms and their exact thresholds is defined in `infra/modules/observability/main.tf`.
+
+## Rehearsal status
+
+This table shows which procedures below have actually been run. A procedure marked "not yet rehearsed" is a written plan, not a proven one.
+
+| Procedure | Status | Evidence |
+|---|---|---|
+| Alarm → SNS (`devops-g8-alerts`) → Lambda → Slack, **firing** notification | **Exercised (manually)** | Alert firing was manually exercised against the live environment, and the notification reached Slack. The repository does not currently contain the screenshot or log artifact. |
+| Same path, **recovery** (`ok_actions`) notification | **Exercised (manually)** | Recovery was manually exercised the same way, and the recovery notification reached Slack. Same caveat: no artifact in the repo. |
+| Live telemetry for the signals below (ALB, ECS, API Gateway, Synthetics) | **Observed** | Populated from live data in the Grafana SLO dashboard: [evidence/reliability/g3-grafana-slo-runtime.md](../evidence/reliability/g3-grafana-slo-runtime.md) |
+| k6 load against the live path (stepped, spike, soak on `/pos/health`) | **Exercised** | [evidence/reliability/capacity-envelope.md](../evidence/reliability/capacity-envelope.md). No alarm crossed its threshold under this load (peak CPU ≈ 2%). |
+| Unhealthy ECS service/tasks: diagnose → recover | Not yet rehearsed (G4) | — |
+| Elevated latency / 5xx / CPU-memory: diagnose → resolve | Not yet rehearsed | — |
+| Synthetic probe failure: diagnose | Not yet rehearsed | The canary's historical failed runs appear in the G3 evidence, but they were not worked through this procedure. |
+| Failed deployment / rollback | **Not yet rehearsed (G4 broken-release drill)** | — |
+| Platform failure (e.g. task/AZ loss) recovery | **Not yet rehearsed (G4)** | No procedure written in this runbook yet. |
+| Backup restore (RDS) | **Not yet rehearsed (G4)** | No procedure written in this runbook yet. The services currently hold state in memory, not in RDS. |
+| Payments uncertain-payment and callback-replay drills | Executed locally by Payments (sandbox and unit tests) | [evidence/payments/g4-recovery-drills.md](../evidence/payments/g4-recovery-drills.md). This is not a rehearsal of this runbook. |
+
+Recovery sits under the Reliability + Operations DRI (`docs/ownership.md`). Glory is currently executing and assisting with the G4 drills in coordination with Hawa. Nothing here claims G4 is complete.
 
 This runbook covers threshold-based alerting only. The multi-window burn-rate policy described in `docs/slo-error-budgets.md`'s "Budget policy" section is explicitly **not yet implemented** — that document already says so, and this runbook doesn't claim otherwise.
 
@@ -111,7 +132,9 @@ Check the canary's artifact S3 bucket (`infra/modules/synthetic-probe` `canary_a
 
 ## Failed deployment / rollback
 
-**Signal:** a new task definition revision fails to reach steady state (ECS deployment circuit breaker, if enabled, or manually observed via `aws ecs describe-services`), or any of the above alarms fire immediately after a deploy.
+> **Not yet rehearsed.** This procedure is the planned G4 broken-release drill and has not been run against the live services.
+
+**Signal:** a new task definition revision fails to reach steady state (observed manually via `aws ecs describe-services`, because the ECS deployment circuit breaker is **not** enabled in `infra/modules/ecs-service`), or any of the above alarms fire immediately after a deploy.
 
 **Rollback:**
 ```bash
@@ -122,7 +145,7 @@ aws ecs list-task-definitions --family-prefix devops-g8-<service> --sort DESC --
 aws ecs update-service --cluster devops-g8-tillflow --service devops-g8-<service> \
   --task-definition devops-g8-<service>:<previous-revision>
 ```
-The durable fix is still through Terraform: revert `image_tags["<service>"]` in `infra/environments/dev/variables.tf` (or its tfvars override) to the previous known-good image tag and re-apply through the normal PR -> plan -> merge -> apply flow, so state doesn't drift from what's actually running.
+The durable fix is still through Terraform: revert `image_tags["<service>"]` in `infra/environments/dev/variables.tf` (or its tfvars override) to the previous known-good image tag and re-apply through the normal PR -> plan -> merge -> apply flow, so state doesn't drift from what's actually running. **Caveat:** the GitHub Actions apply path has never executed (see `docs/cicd.md` → Runtime verification status). Until it has, that re-apply is a manual local `terraform apply` with the same variable overrides used for the live deploy.
 
 **Verify recovery:** `aws ecs describe-services` shows `runningCount == desiredCount` on the rolled-back revision; the ALB/ECS alarms that fired return to `OK`; a manual hit of `/health` (or the synthetic canary's next run) succeeds.
 
@@ -150,12 +173,12 @@ A live, reproducible sequence: k6 load -> metric change -> alarm -> dashboard ->
    ```
    Narrate what's being exercised (the real API Gateway -> VPC Link -> ALB -> ECS path) while it runs.
 3. **Watch the signal move:** switch to the dashboard's ECS CPU/latency widgets and show the line climbing in near-real time.
-   - **If the stub's minimal workload doesn't push CPU/latency over threshold within the recording window** (a real risk — see the caveat in the k6 script's header comment, since these are near-zero-work stub handlers), fall back to a deliberate, honest trigger instead of waiting indefinitely:
+   - **If the workload doesn't push CPU/latency over threshold within the recording window** (the likely outcome: see the caveat in the k6 script's header comment, and the ≈ 2% peak CPU in the G3 capacity evidence), fall back to a deliberate, honest trigger instead of waiting indefinitely:
      ```bash
      aws cloudwatch set-alarm-state --alarm-name devops-g8-web-ecs-cpu-high \
        --state-value ALARM --state-reason "Deliberate demo trigger"
      ```
-     Say on camera that this is a manual trigger standing in for sustained load, so it's clear the alarm→Slack→dashboard pipeline itself is what's being proven, not a claim that the stub was genuinely CPU-bound.
+     Say on camera that this is a manual trigger standing in for sustained load, so it's clear the alarm→Slack→dashboard pipeline itself is what's being proven, not a claim that the service was genuinely CPU-bound. This fallback is the realistic path: the G3 k6 runs peaked at ≈ 2% CPU on `/pos/health` (`evidence/reliability/capacity-envelope.md`). Alert firing and recovery through Slack have already been manually exercised once (see [Rehearsal status](#rehearsal-status)).
 4. **Show the alert land in Slack** (the `alarm_actions` -> SNS -> Lambda -> Slack path) and point out the dashboard widget corroborating it.
 5. **Explain the cause** on camera in one or two sentences (load-driven CPU pressure, or "manually triggered for demo purposes" if you used the fallback).
 6. **Recover:**

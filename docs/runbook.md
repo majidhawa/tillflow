@@ -1,7 +1,7 @@
 # TillFlow Operational Runbook
 
-- Status: Active for G3 alerting. All four services (`web`, `pos`, `payments`, `commission`) are deployed on ECS in `eu-west-3` (one running task each), behind the internal ALB and the public API Gateway. The alarm → SNS → Lambda → Slack path has been exercised end to end, both firing and recovery (see [Rehearsal status](#rehearsal-status)). Most of the diagnose/resolve procedures below have **not** yet been rehearsed. The G4 recovery drills are still open.
-- Last reviewed: 2026-09-29 against `main` @ `f022126`
+- Status: Active for G3 alerting. All four services (`web`, `pos`, `payments`, `commission`) are deployed on ECS in `eu-west-3` (one running task each), behind the internal ALB and the public API Gateway. The alarm → SNS → Lambda → Slack path has been exercised end to end, both firing and recovery (see [Rehearsal status](#rehearsal-status)). The G4 broken-release rollback, task-loss and RDS restore procedures below were run live on 2026-09-29 ([evidence/platform/g4-platform-recovery-drills.md](../evidence/platform/g4-platform-recovery-drills.md)). The latency, 5xx and CPU/memory procedures have **not** yet been rehearsed.
+- Last reviewed: 2026-09-29 against `main` @ `f022126`. The G4 sections were updated from the 2026-09-29 drill results.
 - DRI: Hawaah (Reliability + Operations)
 - Alerting: all alarms below publish to the `devops-g8-alerts` SNS topic (`infra/modules/slack-alerts`), which forwards to Slack via the existing Lambda subscriber.
 - Dashboard: `devops-g8-tillflow-operations` (CloudWatch console -> Dashboards), created by `infra/modules/observability`.
@@ -17,15 +17,15 @@ This table shows which procedures below have actually been run. A procedure mark
 | Same path, **recovery** (`ok_actions`) notification | **Exercised (manually)** | Recovery was manually exercised the same way, and the recovery notification reached Slack. Same caveat: no artifact in the repo. |
 | Live telemetry for the signals below (ALB, ECS, API Gateway, Synthetics) | **Observed** | Populated from live data in the Grafana SLO dashboard: [evidence/reliability/g3-grafana-slo-runtime.md](../evidence/reliability/g3-grafana-slo-runtime.md) |
 | k6 load against the live path (stepped, spike, soak on `/pos/health`) | **Exercised** | [evidence/reliability/capacity-envelope.md](../evidence/reliability/capacity-envelope.md). No alarm crossed its threshold under this load (peak CPU ≈ 2%). |
-| Unhealthy ECS service/tasks: diagnose → recover | Not yet rehearsed (G4) | — |
+| Unhealthy ECS service/tasks: diagnose → recover | **Partially exercised** | ECS task replacement was observed live in the platform-failure drill. The alarm-driven diagnosis path was not exercised. |
 | Elevated latency / 5xx / CPU-memory: diagnose → resolve | Not yet rehearsed | — |
-| Synthetic probe failure: diagnose | Not yet rehearsed | The canary's historical failed runs appear in the G3 evidence, but they were not worked through this procedure. |
-| Failed deployment / rollback | **Not yet rehearsed (G4 broken-release drill)** | — |
-| Platform failure (e.g. task/AZ loss) recovery | **Not yet rehearsed (G4)** | No procedure written in this runbook yet. |
-| Backup restore (RDS) | **Not yet rehearsed (G4)** | No procedure written in this runbook yet. The services currently hold state in memory, not in RDS. |
+| Synthetic probe failure: diagnose | **Partially exercised** | `get-canary-runs` showed PASSED → FAILED → PASSED around the platform-failure drill. The alarm state was not captured. |
+| Failed deployment / rollback | **Exercised (G4)**, 2026-09-29 | Real bad-image-reference failure on Payments, rolled back in 2m01s: [G4 platform drills → Drill 1](../evidence/platform/g4-platform-recovery-drills.md#drill-1-broken-release--rollback-payments) |
+| Platform failure: ECS task loss | **Exercised (G4)**, 2026-09-29 | Web task stopped. ECS self-healed in 66s, with one failed canary run: [Drill 2](../evidence/platform/g4-platform-recovery-drills.md#drill-2-platform-failure-ecs-task-loss-web). **AZ loss has not been rehearsed.** |
+| Backup restore (RDS PITR) | **Exercised (G4), infrastructure only**, 2026-09-29 | PITR into a separate instance and verified. The temporary restore instance was then successfully deleted: [Drill 3](../evidence/platform/g4-platform-recovery-drills.md#drill-3-backup-restore-rds-point-in-time-restore). This does **not** prove application-data integrity, because the services hold state in memory, not in RDS. |
 | Payments uncertain-payment and callback-replay drills | Executed locally by Payments (sandbox and unit tests) | [evidence/payments/g4-recovery-drills.md](../evidence/payments/g4-recovery-drills.md). This is not a rehearsal of this runbook. |
 
-Recovery sits under the Reliability + Operations DRI (`docs/ownership.md`). Glory is currently executing and assisting with the G4 drills in coordination with Hawa. Nothing here claims G4 is complete.
+Recovery sits under the Reliability + Operations DRI (`docs/ownership.md`). Glory assisted with the G4 drills in coordination with Hawa. Nothing here claims the G4 gate is signed off.
 
 This runbook covers threshold-based alerting only. The multi-window burn-rate policy described in `docs/slo-error-budgets.md`'s "Budget policy" section is explicitly **not yet implemented** — that document already says so, and this runbook doesn't claim otherwise.
 
@@ -49,7 +49,7 @@ aws ecs describe-services --cluster devops-g8-tillflow --services devops-g8-<ser
 aws logs tail /ecs/devops-g8-<service> --since 15m --follow
 ```
 
-**Resolve:** if a bad image caused it, see "Failed deployment / rollback" below. If it's a transient crash, ECS will keep replacing the task automatically — confirm `runningCount` climbs back to `desiredCount`.
+**Resolve:** if a bad image caused it, see "Failed deployment / rollback" below. If it's a transient crash, ECS will keep replacing the task automatically — confirm `runningCount` climbs back to `desiredCount`. In the G4 task-loss drill this took 66s (see "Platform failure: ECS task loss" below).
 
 **Verify recovery:** the alarm returns to `OK` (its `ok_actions` also notify Slack), and `UnHealthyHostCount` reads 0 in the dashboard's "ALB unhealthy target count" widget.
 
@@ -132,22 +132,155 @@ Check the canary's artifact S3 bucket (`infra/modules/synthetic-probe` `canary_a
 
 ## Failed deployment / rollback
 
-> **Not yet rehearsed.** This procedure is the planned G4 broken-release drill and has not been run against the live services.
+> **Exercised in G4 on 2026-09-29** (Payments, real bad-image-reference failure). Evidence: [g4-platform-recovery-drills.md → Drill 1](../evidence/platform/g4-platform-recovery-drills.md#drill-1-broken-release--rollback-payments). The steps below are the ones that worked.
 
-**Signal:** a new task definition revision fails to reach steady state (observed manually via `aws ecs describe-services`, because the ECS deployment circuit breaker is **not** enabled in `infra/modules/ecs-service`), or any of the above alarms fire immediately after a deploy.
+**Signal:** no alarm exists for this. The deployment circuit breaker is **disabled**, and with `minimumHealthyPercent=100` the old task keeps serving, so the ALB, canary and API alarms stay quiet. Detect it by inspecting the service directly:
 
-**Rollback:**
+- a PRIMARY deployment stuck at `rolloutState: IN_PROGRESS`
+- `failedTasks` climbing
+- service events such as `CannotPullContainerError` or failing health checks
+
 ```bash
-# Find the previous known-good task definition revision
-aws ecs list-task-definitions --family-prefix devops-g8-<service> --sort DESC --max-items 5
+P="--profile devops-g8-new --region eu-west-3"; C=devops-g8-tillflow; S=devops-g8-<service>
 
-# Point the service back at it
-aws ecs update-service --cluster devops-g8-tillflow --service devops-g8-<service> \
-  --task-definition devops-g8-<service>:<previous-revision>
+aws ecs describe-services --cluster $C --services $S $P --output json \
+  --query 'services[0].{deploymentConfiguration:deploymentConfiguration,deployments:deployments[].{status:status,td:taskDefinition,rollout:rolloutState,running:runningCount,pending:pendingCount,failed:failedTasks}}'
+aws ecs describe-services --cluster $C --services $S $P --output text --query 'services[0].events[0:10].[createdAt,message]'
 ```
-The durable fix is still through Terraform: revert `image_tags["<service>"]` in `infra/environments/dev/variables.tf` (or its tfvars override) to the previous known-good image tag and re-apply through the normal PR -> plan -> merge -> apply flow, so state doesn't drift from what's actually running. **Caveat:** the GitHub Actions apply path has never executed (see `docs/cicd.md` → Runtime verification status). Until it has, that re-apply is a manual local `terraform apply` with the same variable overrides used for the live deploy.
 
-**Verify recovery:** `aws ecs describe-services` shows `runningCount == desiredCount` on the rolled-back revision; the ALB/ECS alarms that fired return to `OK`; a manual hit of `/health` (or the synthetic canary's next run) succeeds.
+Confirm `minimumHealthyPercent` is 100 before you touch anything. That setting is what keeps the old task serving during the rollback.
+
+**1. Identify the failed and known-good versions.**
+```bash
+aws ecs describe-task-definition --task-definition $S:<failed-rev> $P --query 'taskDefinition.{rev:revision,status:status,images:containerDefinitions[].image}'
+aws ecs describe-task-definition --task-definition $S:<good-rev>   $P --query 'taskDefinition.{rev:revision,status:status,deregisteredAt:deregisteredAt,images:containerDefinitions[].image}'
+# For a pull failure, confirm the tag is missing and the known-good tag exists
+aws ecr describe-images --repository-name $S --image-ids imageTag=<failed-tag> $P   # expect ImageNotFoundException
+aws ecr describe-images --repository-name $S --image-ids imageTag=<good-tag> $P
+```
+
+**2. Re-register the known-good revision if it is `INACTIVE`.** Terraform deregisters the previous revision whenever it replaces a task definition, so this is the normal case. ECS won't let you `update-service` to an INACTIVE revision. Skip this step only if the known-good revision is still `ACTIVE`.
+```bash
+E=~/tillflow-evidence-<date>; mkdir -p "$E"     # keep evidence outside the repo
+aws ecs describe-task-definition --task-definition $S:<good-rev> --include TAGS $P --output json > "$E/td-good-source.json"
+jq '(.taskDefinition | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt))
+    + (if ((.tags // []) | length) > 0 then {tags: .tags} else {} end)' "$E/td-good-source.json" > "$E/td-rollback-input.json"
+diff <(jq -S '.taskDefinition.containerDefinitions' "$E/td-good-source.json") \
+     <(jq -S '.containerDefinitions' "$E/td-rollback-input.json") && echo "CONTAINER DEFS IDENTICAL"   # must print this before you continue
+aws ecs register-task-definition --cli-input-json "file://$E/td-rollback-input.json" $P --output json \
+  --query 'taskDefinition.{arn:taskDefinitionArn,revision:revision,status:status,images:containerDefinitions[].image}'
+```
+
+**3. Roll back and wait.**
+```bash
+date -u +%FT%TZ
+aws ecs update-service --cluster $C --service $S --task-definition $S:<new-rev> $P \
+  --query 'service.deployments[].{status:status,td:taskDefinition,rollout:rolloutState,running:runningCount}'
+aws ecs wait services-stable --cluster $C --services $S $P; date -u +%FT%TZ
+```
+
+In the G4 drill, `update-service` to stable took 2m01s.
+
+**Side effect:** replacing the task clears that service's in-memory state. POS, Payments and Commission keep all their state in memory.
+
+**Verify recovery:**
+```bash
+aws ecs describe-services --cluster $C --services $S $P \
+  --query 'services[0].{desired:desiredCount,running:runningCount,pending:pendingCount,deployments:deployments[].{status:status,td:taskDefinition,rollout:rolloutState,running:runningCount,failed:failedTasks}}'
+TG=$(aws elbv2 describe-target-groups --names $S-tg $P --query 'TargetGroups[0].TargetGroupArn' --output text)
+aws elbv2 describe-target-health --target-group-arn $TG $P --query 'TargetHealthDescriptions[].{ip:Target.Id,state:TargetHealth.State,reason:TargetHealth.Reason}'
+API=$(aws apigatewayv2 get-apis $P --query "Items[?Name=='devops-g8-http-api'].ApiEndpoint" --output text)
+curl -sS -w '\nHTTP %{http_code}\n' "$API/<service-prefix>/health"
+```
+
+- **Service check:** you want a single PRIMARY deployment on the new revision, `COMPLETED`, with `failed=0`.
+- **Target health:** the new target should be `healthy`. The old one may still show `draining`.
+- **External `curl`:** this only proves routing. Through the ALB, `/payments/health` reaches Payments' `/` handler. The ALB target health, which uses `/health`, is the real health signal.
+
+**Afterwards (not part of the stopgap):**
+
+- **Reconcile Terraform.** The service now runs a revision Terraform doesn't know about, and state still points at the failed revision. The next apply must pass the known-good tag in `image_tags["<service>"]`, or it will redeploy the broken reference.
+  - Run `terraform plan` first. The only expected change is that service's task-definition replacement and service update.
+  - The GitHub Actions apply path has never executed (see `docs/cicd.md` → Runtime verification status), so this is a manual local apply with the same overrides as the live deploy.
+- **Check the tag before you apply.** Before using any commit SHA as an image tag, confirm it exists with `aws ecr describe-images`. Docs-only merges never produce an image. That is exactly what caused the G4 failure.
+
+---
+
+## Platform failure: ECS task loss
+
+> **Exercised in G4 on 2026-09-29** (Web). Evidence: [Drill 2](../evidence/platform/g4-platform-recovery-drills.md#drill-2-platform-failure-ecs-task-loss-web). This covers task loss only. **AZ loss has not been rehearsed.**
+
+**What to expect:** ECS replaces a stopped or crashed task automatically, with no operator action. With `desired_count = 1` there is a short user-visible outage. In the drill, stop to steady state took 66s and the canary recorded one failed run.
+
+**To rehearse it,** use `web`, because it's stateless. Stopping `pos`, `payments` or `commission` clears their in-memory state.
+```bash
+P="--profile devops-g8-new --region eu-west-3"; C=devops-g8-tillflow; S=devops-g8-web
+T=$(aws ecs list-tasks --cluster $C --service-name $S --desired-status RUNNING $P --query 'taskArns[0]' --output text)
+date -u +%FT%TZ
+aws ecs stop-task --cluster $C --task $T --reason "G4 platform-failure drill" $P --query 'task.{task:taskArn,last:lastStatus,desired:desiredStatus}'
+aws ecs wait services-stable --cluster $C --services $S $P; date -u +%FT%TZ
+```
+
+**Verify recovery:**
+```bash
+aws ecs describe-services --cluster $C --services $S $P \
+  --query 'services[0].{desired:desiredCount,running:runningCount,pending:pendingCount,deployments:deployments[].{status:status,rollout:rolloutState,running:runningCount},events:events[0:6].[createdAt,message]}'
+aws synthetics get-canary-runs --name devops-g8-probe --max-results 10 $P --output text --query 'CanaryRuns[].[Timeline.Started,Status.State]'
+```
+
+- **Service events:** look for "deregistered 1 targets", then "has started 1 tasks", then "registered 1 targets", then "has reached a steady state".
+- **Canary:** it should return to `PASSED` within about a minute of the target registering.
+- **Also capture** `aws cloudwatch describe-alarm-history --alarm-name devops-g8-synthetic-probe-failed-runs --history-item-type StateUpdate $P`. The G4 drill did not record it.
+
+---
+
+## Backup restore (RDS point-in-time restore)
+
+> **Exercised in G4 on 2026-09-29**, **infrastructure only**. Evidence: [Drill 3](../evidence/platform/g4-platform-recovery-drills.md#drill-3-backup-restore-rds-point-in-time-restore).
+>
+> No TillFlow service stores data in RDS today, since all application state is in memory. A successful restore proves that the backups exist and can be restored. It does **not** prove application data survives.
+
+**Always restore into a separate instance.** Never restore over, or modify, `devops-g8-postgres`.
+
+```bash
+P="--profile devops-g8-new --region eu-west-3"; SRC=devops-g8-postgres; DST=devops-g8-postgres-restore-drill
+
+aws rds describe-db-instances --db-instance-identifier $SRC $P --output json \
+  --query 'DBInstances[0].{status:DBInstanceStatus,version:EngineVersion,class:DBInstanceClass,encrypted:StorageEncrypted,multiAZ:MultiAZ,retention:BackupRetentionPeriod,latestRestorable:LatestRestorableTime,subnetGroup:DBSubnetGroup.DBSubnetGroupName,sgs:VpcSecurityGroups[].VpcSecurityGroupId,public:PubliclyAccessible}'
+aws rds describe-db-snapshots --db-instance-identifier $SRC --snapshot-type automated $P --output table \
+  --query 'DBSnapshots[].{snapshot:DBSnapshotIdentifier,created:SnapshotCreateTime,encrypted:Encrypted,status:Status}'
+aws rds describe-db-instances --db-instance-identifier $DST $P 2>&1 | head -2   # expect DBInstanceNotFound before you start
+
+date -u +%FT%TZ
+aws rds restore-db-instance-to-point-in-time $P \
+  --source-db-instance-identifier $SRC --target-db-instance-identifier $DST \
+  --use-latest-restorable-time --db-subnet-group-name <subnetGroup> --vpc-security-group-ids <sg-id> \
+  --db-instance-class <class> --no-publicly-accessible --no-multi-az \
+  --query 'DBInstance.{id:DBInstanceIdentifier,status:DBInstanceStatus,class:DBInstanceClass,encrypted:StorageEncrypted}'
+aws rds wait db-instance-available --db-instance-identifier $DST $P; date -u +%FT%TZ
+```
+
+Take `<subnetGroup>`, `<sg-id>` and `<class>` from the first command's output. In the G4 drill, request to `available` took 32m26s.
+
+**Verify:** the restored instance should match the source on engine version, class, encryption, public access, subnet group and security groups.
+```bash
+aws rds describe-db-instances --db-instance-identifier $DST $P --output json \
+  --query 'DBInstances[0].{status:DBInstanceStatus,version:EngineVersion,class:DBInstanceClass,encrypted:StorageEncrypted,multiAZ:MultiAZ,public:PubliclyAccessible,subnetGroup:DBSubnetGroup.DBSubnetGroupName,sgs:VpcSecurityGroups[].VpcSecurityGroupId}'
+```
+
+**Clean up the same day.** This is destructive, so check the identifier before running it. It must be the `-restore-drill` instance, never `devops-g8-postgres`.
+```bash
+aws rds delete-db-instance --db-instance-identifier $DST --skip-final-snapshot --delete-automated-backups $P \
+  --query 'DBInstance.{id:DBInstanceIdentifier,status:DBInstanceStatus}'
+aws rds wait db-instance-deleted --db-instance-identifier $DST $P    # confirm completion
+```
+
+In the G4 drill, `aws rds wait db-instance-deleted` completed successfully at 2026-09-29T22:56:37Z, confirming deletion of `devops-g8-postgres-restore-drill`.
+
+**Not covered yet:**
+
+- **Data integrity.** Checking a marker row needs a Postgres client inside the VPC, and there's no bastion. That becomes necessary once services actually persist to RDS.
+- **RPO/RTO targets.** None have been agreed (ADR-001 only references them).
 
 ---
 

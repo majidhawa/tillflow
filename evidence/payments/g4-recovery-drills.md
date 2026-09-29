@@ -124,3 +124,7 @@ These two drills are Payments + Integrity's ownership per
 `docs/ownership.md`. The remaining three G4 drills (platform failure,
 broken release, restore) belong to Reliability + Operations and have
 not yet been executed by anyone.
+
+> **Update (2026-09-29):** those three drills have since been executed live. They are
+> recorded separately in `evidence/platform/g4-platform-recovery-drills.md`. The
+> Payments evidence above is unchanged.

@@ -86,6 +86,13 @@ module "ecs_service_pos" {
   target_group_arn   = module.alb.target_group_arns["pos"]
   enable_service     = var.enable_services
   tags               = var.tags
+
+  # No service discovery exists, so POS reaches Payments through the
+  # internal ALB listener (port 80), whose /payments rule forwards to the
+  # Payments target group. Requires the ecs_tasks <-> ALB rules below.
+  environment = {
+    PAYMENTS_BASE_URL = "http://${module.alb.alb_dns_name}"
+  }
 }
 
 module "ecs_service_payments" {
@@ -107,6 +114,46 @@ module "ecs_service_payments" {
   target_group_arn   = module.alb.target_group_arns["payments"]
   enable_service     = var.enable_services
   tags               = var.tags
+
+  # Daraja config comes from the out-of-band-populated devops-g8-daraja
+  # JSON secret; each JSON key is named after the env var it feeds.
+  # Payments is the only service given these references.
+  secrets = [for key in local.daraja_env_keys : {
+    name       = key
+    value_from = "${module.app_secrets.secret_arns["daraja"]}:${key}::"
+  }]
+}
+
+locals {
+  daraja_env_keys = [
+    "DARAJA_CONSUMER_KEY",
+    "DARAJA_CONSUMER_SECRET",
+    "DARAJA_BASE_URL",
+    "DARAJA_SHORTCODE",
+    "DARAJA_PASSKEY",
+    "DARAJA_CALLBACK_URL",
+    "DARAJA_INITIATOR_NAME",
+    "DARAJA_B2C_SECURITY_CREDENTIAL",
+    "DARAJA_B2C_SHORTCODE",
+    "DARAJA_B2C_RESULT_URL",
+    "DARAJA_B2C_TIMEOUT_URL",
+  ]
+}
+
+# ECS container "secrets" are resolved by the ECS agent using the
+# EXECUTION role (not the task role), and AmazonECSTaskExecutionRolePolicy
+# does not include Secrets Manager. Scoped to the Daraja secret only.
+data "aws_iam_policy_document" "execution_read_daraja" {
+  statement {
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [module.app_secrets.secret_arns["daraja"]]
+  }
+}
+
+resource "aws_iam_role_policy" "execution_read_daraja" {
+  name   = "${var.name_prefix}-ecs-execution-read-daraja"
+  role   = module.ecs_cluster.execution_role_name
+  policy = data.aws_iam_policy_document.execution_read_daraja.json
 }
 
 module "ecs_service_commission" {
@@ -128,6 +175,12 @@ module "ecs_service_commission" {
   target_group_arn   = module.alb.target_group_arns["commission"]
   enable_service     = var.enable_services
   tags               = var.tags
+
+  # Same internal-ALB path as POS; without it Commission falls back to
+  # localhost:8080 (its own port) and B2C requests never reach Payments.
+  environment = {
+    PAYMENTS_BASE_URL = "http://${module.alb.alb_dns_name}"
+  }
 }
 
 # --- G1 remaining platform infrastructure ---
@@ -269,6 +322,29 @@ resource "aws_security_group_rule" "alb_ingress_from_apigw_vpc_link" {
   to_port                  = 80
   protocol                 = "tcp"
   description              = "API Gateway VPC Link to ALB listener"
+}
+
+# Service-to-service path: POS calls Payments via the internal ALB
+# (PAYMENTS_BASE_URL). Tasks share one security group, so this pair is
+# scoped SG-to-SG on the listener port only — no CIDR ranges.
+resource "aws_security_group_rule" "alb_ingress_from_ecs_tasks" {
+  type                     = "ingress"
+  security_group_id        = module.alb.alb_security_group_id
+  source_security_group_id = module.alb.ecs_tasks_security_group_id
+  from_port                = 80
+  to_port                  = 80
+  protocol                 = "tcp"
+  description              = "ECS tasks to ALB listener (POS to Payments)"
+}
+
+resource "aws_security_group_rule" "ecs_tasks_egress_to_alb" {
+  type                     = "egress"
+  security_group_id        = module.alb.ecs_tasks_security_group_id
+  source_security_group_id = module.alb.alb_security_group_id
+  from_port                = 80
+  to_port                  = 80
+  protocol                 = "tcp"
+  description              = "ECS tasks to ALB listener (POS to Payments)"
 }
 
 module "observability" {

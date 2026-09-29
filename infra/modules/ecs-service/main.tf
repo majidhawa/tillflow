@@ -6,7 +6,16 @@
 locals {
   family = "${var.name_prefix}-${var.name}"
 
-  app_container = {
+  # Only emit a "secrets" key when this service actually has secrets, so
+  # services without any keep a byte-identical container definition.
+  app_container_secrets = {
+    for k, v in { secrets = [for s in var.secrets : { name = s.name, valueFrom = s.value_from }] } :
+    k => v if length(var.secrets) > 0
+  }
+
+  app_container = merge(local.app_container_base, local.app_container_secrets)
+
+  app_container_base = {
     name      = var.name
     image     = var.image
     essential = true
@@ -47,7 +56,8 @@ locals {
         { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://localhost:4317" },
         { name = "OTEL_SERVICE_NAME", value = var.name },
         { name = "OTEL_RESOURCE_ATTRIBUTES", value = "service.name=${var.name},service.namespace=tillflow,deployment.environment=capstone" },
-      ] : []
+      ] : [],
+      [for k, v in var.environment : { name = k, value = v }]
     )
   }
 

@@ -96,6 +96,12 @@ func (c *callbackStore) applyCallback(checkoutID string, resultCode int) (*payme
 // doesn't help us here since our own idempotency already handles repeats.
 func callbackHandler(store *callbackStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracer.Start(r.Context(), "stk_callback")
+		defer span.End()
+		traceID, spanID := spanAttrs(ctx)
+		_ = traceID
+		_ = spanID
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -113,9 +119,9 @@ func callbackHandler(store *callbackStore) http.HandlerFunc {
 
 		if payment == nil {
 			log.Printf("callback: unknown CheckoutRequestID %s, ignoring", cb.CheckoutRequestID)
-		} else if changed {
-			log.Printf("callback: payment %s transitioned to %s (checkout_id=%s, result_code=%d, result_desc=%q)",
-				payment.PaymentID, payment.State, cb.CheckoutRequestID, cb.ResultCode, cb.ResultDesc)
+				} else if changed {
+			log.Printf("callback: payment %s transitioned to %s (checkout_id=%s, result_code=%d, result_desc=%q, trace_id=%s, span_id=%s)",
+				payment.PaymentID, payment.State, cb.CheckoutRequestID, cb.ResultCode, cb.ResultDesc, traceID, spanID)
 		} else {
 			log.Printf("callback: duplicate/reordered callback for checkout_id=%s, already terminal, ignored",
 				cb.CheckoutRequestID)

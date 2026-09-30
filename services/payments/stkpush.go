@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -59,6 +60,7 @@ type darajaSTKPushResponse struct {
 // of creating a duplicate. Swap for Postgres once RDS is live — the
 // interface (get/put by idempotency key) stays the same.
 type paymentStore struct {
+	mu               sync.Mutex
 	byIdempotencyKey map[string]*paymentResponse
 }
 
@@ -67,11 +69,15 @@ func newPaymentStore() *paymentStore {
 }
 
 func (s *paymentStore) get(idempotencyKey string) (*paymentResponse, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	p, ok := s.byIdempotencyKey[idempotencyKey]
 	return p, ok
 }
 
 func (s *paymentStore) put(idempotencyKey string, p *paymentResponse) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.byIdempotencyKey[idempotencyKey] = p
 }
 

@@ -96,3 +96,36 @@ and confirmed the real infrastructure was untouched the whole time.
 diagnostic step for any unexpected AWS API error, before assuming
 infrastructure itself has changed. A silently-expired session and an
 actually-deleted resource produce identical-looking errors.
+
+## Unsynchronized map writes crashing the process under concurrent load
+
+**What happened:** `paymentStore`'s idempotency-key map had no mutex,
+unlike `callbackStore` and `payoutStore`, which both correctly used
+one. Sequential manual testing throughout the night never surfaced
+this, since only one request was ever in flight at a time. Running a
+k6 load test at 100 concurrent virtual users against `/payments` (using
+the deterministic fake Daraja adapter, `scripts/fake-daraja/`) crashed
+the entire process within about 80 seconds:
+
+    fatal error: concurrent map writes
+    main.(*paymentStore).put(...)
+    	services/payments/stkpush.go:75
+
+This is Go's runtime deliberately killing the process on detecting
+unsynchronized concurrent map access, rather than risk silent data
+corruption.
+
+**Fix:** added the same `sync.Mutex` pattern already used by
+`callbackStore` and `payoutStore` to `paymentStore`'s `get` and `put`
+methods.
+
+**Verification:** re-ran the identical 100-VU, 60-second load test
+after the fix — 7,273 requests, 0% failures, p95 4.78ms, no crash.
+
+**Lesson:** a correctness bug in shared in-memory state can be
+completely invisible under any amount of sequential or low-concurrency
+testing, and only appears under genuine concurrent load. This is
+exactly why the capstone brief requires k6 load testing against a
+deterministic fake adapter — this bug would have shipped to any real
+concurrent traffic otherwise, sequential testing gave zero signal of
+it, however much of it was done.

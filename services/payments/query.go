@@ -38,6 +38,9 @@ type darajaQueryResponse struct {
 // is what guarantees that.
 func queryHandler(auth *darajaAuth, callbacks *callbackStore, cfg stkPushConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracer.Start(r.Context(), "stk_query")
+		defer span.End()
+
 		checkoutID := r.URL.Query().Get("checkout_id")
 		if checkoutID == "" {
 			http.Error(w, "checkout_id query param required", http.StatusBadRequest)

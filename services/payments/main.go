@@ -56,9 +56,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", ok(name+": ok"))
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "simulated failure for G4 broken-release drill (v2 - actually deployed this time)", http.StatusInternalServerError)
-	})
+	mux.HandleFunc("/health", ok("healthy"))
 	mux.HandleFunc("/ready", ok("ready"))
 	mux.HandleFunc("/payments", stkPushHandler(auth, store, callbacks, cfg))
 	mux.HandleFunc("/payments/callback", callbackHandler(callbacks))
